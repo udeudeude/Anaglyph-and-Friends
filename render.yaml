@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: anaglyph-and-friends
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: AAF_TORCH_DEVICE
+        value: cpu
