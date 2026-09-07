@@ -6,8 +6,9 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# Empty backend URL makes browser requests same-origin in production.
-ENV VITE_FLASK_BACKEND_API_URL=""
+# A dot keeps the existing `${apiUrl}/...` calls same-origin in production;
+# local Vite still falls back to http://localhost:8000 when this variable is absent.
+ENV VITE_FLASK_BACKEND_API_URL="."
 RUN npm run build
 
 FROM python:3.11-slim-bookworm AS runtime
