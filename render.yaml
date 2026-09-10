@@ -3,7 +3,7 @@ services:
     name: anaglyph-and-friends
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /
     envVars:
       - key: FLASK_SECRET_KEY
