@@ -75,6 +75,12 @@ const pairBaseSize = (left: ImageBitmap, right: ImageBitmap, scope: 'preview' | 
 const colorAmount = (mode: string) => mode === 'full' ? 1 : mode === 'half' ? .5 : mode === 'gray' ? 0 : Math.max(0, Math.min(1, Number(mode) / 100 || 0))
 const luminance = (r: number, g: number, b: number) => Math.round(.299 * r + .587 * g + .114 * b)
 const mix = (gray: number, color: number, amount: number) => Math.round(gray * (1 - amount) + color * amount)
+const parseHex = (value: string, fallback: [number, number, number]): [number, number, number] => {
+    let text = String(value || '').trim().replace(/^#/, '')
+    if (text.length === 3) text = text.split('').map(char => char + char).join('')
+    if (!/^[0-9a-f]{6}$/i.test(text)) return fallback
+    return [Number.parseInt(text.slice(0, 2), 16), Number.parseInt(text.slice(2, 4), 16), Number.parseInt(text.slice(4, 6), 16)]
+}
 
 const renderAnaglyph = (leftCanvas: HTMLCanvasElement, rightCanvas: HTMLCanvasElement, settings: TechniqueSettings) => {
     const canvas = makeCanvas(leftCanvas.width, leftCanvas.height)
@@ -84,6 +90,26 @@ const renderAnaglyph = (leftCanvas: HTMLCanvasElement, rightCanvas: HTMLCanvasEl
     const output = context.createImageData(canvas.width, canvas.height)
     const amount = colorAmount(settings.anaglyph.colorMode)
     const glasses = settings.anaglyph.glasses
+    const standard = glasses === 'red-cyan' || glasses === 'red-green' || glasses === 'red-blue'
+
+    if (!standard) {
+        const calibration = settings.anaglyph[settings.anaglyph.target]
+        const [lr, lg, lb] = parseHex(calibration.leftColor, [255, 0, 0])
+        const [rr, rg, rb] = parseHex(calibration.rightColor, [0, 255, 255])
+        const leftGain = Math.max(0, Math.min(1.5, calibration.leftGain / 100))
+        const rightGain = Math.max(0, Math.min(1.5, calibration.rightGain / 100))
+        for (let index = 0; index < output.data.length; index += 4) {
+            const ll = luminance(leftData.data[index], leftData.data[index + 1], leftData.data[index + 2]) / 255
+            const rl = luminance(rightData.data[index], rightData.data[index + 1], rightData.data[index + 2]) / 255
+            output.data[index] = Math.min(255, Math.round(ll * lr * leftGain + rl * rr * rightGain))
+            output.data[index + 1] = Math.min(255, Math.round(ll * lg * leftGain + rl * rg * rightGain))
+            output.data[index + 2] = Math.min(255, Math.round(ll * lb * leftGain + rl * rb * rightGain))
+            output.data[index + 3] = 255
+        }
+        context.putImageData(output, 0, 0)
+        return canvas
+    }
+
     for (let index = 0; index < output.data.length; index += 4) {
         const ll = luminance(leftData.data[index], leftData.data[index + 1], leftData.data[index + 2])
         const rl = luminance(rightData.data[index], rightData.data[index + 1], rightData.data[index + 2])
