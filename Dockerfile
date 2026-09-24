@@ -15,6 +15,7 @@ FROM python:3.11-slim-bookworm AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     AAF_TORCH_DEVICE=cpu \
+    AAF_BROWSER_DEPTH=true \
     FLASK_HOST=0.0.0.0 \
     FLASK_PORT=8000
 
