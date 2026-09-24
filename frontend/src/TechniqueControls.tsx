@@ -29,8 +29,6 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
             'red-cyan': ['#ff0000', '#00ffff'],
             'red-green': ['#ff0000', '#00ff00'],
             'red-blue': ['#ff0000', '#0000ff'],
-            'yellow-blue': ['#ffff00', '#0000ff'],
-            'yellow-magenta': ['#ffff00', '#ff00ff'],
         };
         if (preset === 'custom') {
             update('anaglyph', { glasses: preset });
@@ -131,7 +129,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         body = <>
             <div className="techniqueGrid two anaglyphSettingsGrid">
                 <label><span>Calibration target</span><select value={s.target} onChange={(e) => update('anaglyph', { target: e.target.value as typeof s.target })}><option value="screen">Screen / emitted light</option><option value="print">Print / reflected light</option></select></label>
-                <label><span>Glasses / filter pair</span><select value={s.glasses} onChange={(e) => applyAnaglyphPreset(e.target.value as typeof s.glasses)}><option value="red-cyan">Red / Cyan</option><option value="red-green">Red / Green</option><option value="red-blue">Red / Blue</option><option value="yellow-blue">Yellow / Blue</option><option value="yellow-magenta">Yellow / Magenta</option><option value="custom">Custom / any colors</option></select></label>
+                <label><span>Glasses / filter pair</span><select value={s.glasses} onChange={(e) => applyAnaglyphPreset(e.target.value as typeof s.glasses)}><option value="red-cyan">Red / Cyan</option><option value="red-green">Red / Green</option><option value="red-blue">Red / Blue</option><option value="custom">Custom / any colors</option></select></label>
             </div>
             <div className="techniqueGrid two">
                 <label><span>Left-eye output color</span><div className="inlineRange"><input type="color" value={calibration.leftColor} onChange={(e) => updateAnaglyphCalibration({ leftColor: e.target.value })} /><input type="text" value={calibration.leftColor} onChange={(e) => updateAnaglyphCalibration({ leftColor: e.target.value })} /></div></label>
@@ -156,7 +154,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 </div>
                 <strong className="printWarning">{s.target === 'print' ? 'PRINT THE TEST AT 100% / ACTUAL SIZE. Printer, ink, paper, and lighting all affect the result.' : 'CALIBRATE ON THE ACTUAL DISPLAY AND BRIGHTNESS YOU PLAN TO USE.'}</strong>
             </div>
-            <p className="techniqueHint">Yellow presets are included for experimental color-filter work. Custom mode accepts any two RGB colors and renders luminance through those calibrated colors.</p>
+            <p className="techniqueHint">Custom mode accepts any two RGB output colors and renders luminance through those calibrated colors. Screen and print profiles are independent.</p>
         </>;
     }
 
