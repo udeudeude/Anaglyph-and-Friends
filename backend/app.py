@@ -212,6 +212,8 @@ def get_ai_depth():
     ai_path = session_path("depth_map_ai.npy")
     if os.path.exists(ai_path):
         return np.load(ai_path, allow_pickle=False).astype(np.float32)
+    if os.getenv("AAF_BROWSER_DEPTH", "false").lower() == "true":
+        raise RuntimeError("Hosted mode expects Depth Anything V2 to run in the user's browser")
     image = cv2.imread(session_path("image.png"))
     if image is None:
         raise FileNotFoundError("No uploaded source image is available")
@@ -235,6 +237,32 @@ def get_depth_map():
     try:
         ensure_depth_maps()
         return send_from_directory(SESSION_DATA_FOLDER, os.path.basename(session_path("depth_map_coloured.jpg")), request.environ)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/depth-map/ai-import", methods=["POST"])
+def import_ai_depth_map():
+    if "file" not in request.files:
+        return jsonify({"error": "No AI depth map file"}), 400
+    try:
+        source = cv2.imread(session_path("image.png"))
+        if source is None:
+            raise FileNotFoundError("Upload a source image before importing browser AI depth")
+        imported = load_depth_upload(request.files["file"])
+        aligned = align_depth(imported, source.shape[1], source.shape[0], "stretch")
+        aligned = np.clip(aligned, 0.0, 1.0).astype(np.float32)
+        np.save(session_path("depth_map_ai.npy"), aligned, allow_pickle=False)
+        invert = request.form.get("invert", "false").lower() == "true"
+        save_active_depth(1.0 - aligned if invert else aligned)
+        return jsonify({
+            "success": True,
+            "depth_width": int(imported.shape[1]),
+            "depth_height": int(imported.shape[0]),
+            "source_width": int(source.shape[1]),
+            "source_height": int(source.shape[0]),
+            "invert": invert,
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
