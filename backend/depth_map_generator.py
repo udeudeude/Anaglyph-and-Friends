@@ -61,10 +61,10 @@ class DepthMapGenerator:
         return cls._instance
 
     def __init__(self, encoder="vits"):
-        if self.model is None:
-            self.load_model(encoder)
+        self.encoder = encoder
 
-    def load_model(self, encoder):
+    def load_model(self, encoder=None):
+        encoder = encoder or self.encoder
         print("Loading model")
         self.device = choose_torch_device()
         model_configs = {
@@ -86,6 +86,8 @@ class DepthMapGenerator:
         consistent device decision and preserve the source aspect ratio.
         """
         started = time.time()
+        if self.model is None:
+            self.load_model()
         input_size = 518
         transform = Compose([
             Resize(
