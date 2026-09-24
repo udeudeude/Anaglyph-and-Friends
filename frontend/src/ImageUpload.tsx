@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent as ReactDragEvent } from "react";
 import "./styles/ImageUpload.css";
+import { generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
 
 type Props = {
     setIsDepthMapReadyStateLifter: (ready: boolean) => void;
@@ -31,6 +32,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [depthInvert, setDepthInvert] = useState(false);
     const [depthSourceMeta, setDepthSourceMeta] = useState('');
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
+    const useBrowserDepth = hostedBrowserDepthEnabled();
 
     const replaceObjectUrl = (setter: (value: string | null) => void, oldUrl: string | null, blob: Blob | null) => {
         if (oldUrl) URL.revokeObjectURL(oldUrl);
@@ -50,6 +52,31 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setProcessingStage('stereo');
         } catch (error) {
             console.error("Failed to fetch depth map", error);
+            setProcessingStage('error');
+            setIsChangeAllowed(true);
+        } finally {
+            setDepthMapIsLoading(false);
+        }
+    };
+
+    const generateHostedAiDepth = async (file: File, invert = depthInvert) => {
+        setDepthMapIsLoading(true);
+        setProcessingStage('depth');
+        setDepthSourceMeta('Loading Depth Anything V2 into this browser…');
+        try {
+            const generated = await generateBrowserDepth(file, setDepthSourceMeta);
+            const form = new FormData();
+            form.append('file', generated.file, generated.file.name);
+            form.append('invert', String(invert));
+            const response = await fetch(`${apiUrl}/depth-map/ai-import`, { method: 'POST', body: form, credentials: 'include' });
+            const info = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(info.error || `Browser AI depth import failed: ${response.status}`);
+            setDepthSource('ai');
+            setDepthSourceMeta(`Depth Anything V2 · ${generated.engine} · runs on this device`);
+            await fetchDepthMap();
+        } catch (error) {
+            console.error('Browser depth estimation failed', error);
+            setDepthSourceMeta('Browser AI depth failed · import a depth map or stereo pair instead');
             setProcessingStage('error');
             setIsChangeAllowed(true);
         } finally {
@@ -161,7 +188,8 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             if (info.width && info.height) {
                 setSourceMeta(`${info.width} × ${info.height} · ${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB · full resolution`);
             }
-            await fetchDepthMap();
+            if (useBrowserDepth) await generateHostedAiDepth(file, false);
+            else await fetchDepthMap();
         } catch (error) {
             console.error("Failed to upload image", error);
             setProcessingStage('error');
