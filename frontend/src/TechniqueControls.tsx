@@ -24,6 +24,43 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         setSettings({ ...settings, [section]: { ...settings[section], ...values } });
     };
 
+    const applyAnaglyphPreset = (preset: TechniqueSettings['anaglyph']['glasses']) => {
+        const pairs: Record<Exclude<TechniqueSettings['anaglyph']['glasses'], 'custom'>, [string, string]> = {
+            'red-cyan': ['#ff0000', '#00ffff'],
+            'red-green': ['#ff0000', '#00ff00'],
+            'red-blue': ['#ff0000', '#0000ff'],
+            'yellow-blue': ['#ffff00', '#0000ff'],
+            'yellow-magenta': ['#ffff00', '#ff00ff'],
+        };
+        if (preset === 'custom') {
+            update('anaglyph', { glasses: preset });
+            return;
+        }
+        const [leftColor, rightColor] = pairs[preset];
+        const target = settings.anaglyph.target;
+        const current = settings.anaglyph[target];
+        setSettings({
+            ...settings,
+            anaglyph: {
+                ...settings.anaglyph,
+                glasses: preset,
+                [target]: { ...current, leftColor, rightColor },
+            },
+        });
+    };
+
+    const updateAnaglyphCalibration = (values: Partial<TechniqueSettings['anaglyph']['screen']>) => {
+        const target = settings.anaglyph.target;
+        setSettings({
+            ...settings,
+            anaglyph: {
+                ...settings.anaglyph,
+                glasses: 'custom',
+                [target]: { ...settings.anaglyph[target], ...values },
+            },
+        });
+    };
+
     const applyCardboardPreset = (preset: TechniqueSettings['cardboard']['preset']) => {
         if (preset === 'cardboard') {
             update('cardboard', { preset, width: 1920, height: 1080, screenWidthMm: 121, lensSeparationMm: 63, imageScale: 92 });
@@ -87,23 +124,39 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
 
     if (technique === 'anaglyph') {
         const s = settings.anaglyph;
+        const calibration = s[s.target];
         const colorAmount = s.colorMode === 'full' ? 100 : s.colorMode === 'half' ? 50 : s.colorMode === 'gray' ? 0 : Math.max(0, Math.min(100, numberValue(s.colorMode, 100)));
         const setColorAmount = (amount: number) => update('anaglyph', { colorMode: amount >= 100 ? 'full' : amount <= 0 ? 'gray' : String(Math.round(amount)) });
         const colorLabel = colorAmount === 100 ? 'Full color' : colorAmount === 0 ? 'Grayscale' : colorAmount === 50 ? 'Half color' : `${colorAmount}% color`;
         body = <>
             <div className="techniqueGrid two anaglyphSettingsGrid">
-                <label><span>Glasses / filter pair</span><select value={s.glasses} onChange={(e) => update('anaglyph', { glasses: e.target.value as typeof s.glasses })}><option value="red-cyan">Red / Cyan</option><option value="red-green">Red / Green</option><option value="red-blue">Red / Blue</option></select></label>
-                <div className="colorRenderField">
-                    <span>Color rendering</span>
-                    <div className="colorRenderSlider">
-                        <button type="button" onClick={() => setColorAmount(0)} className={colorAmount === 0 ? 'active' : ''}>Grayscale</button>
-                        <input type="range" min="0" max="100" step="1" value={colorAmount} onChange={(e) => setColorAmount(Number(e.target.value))} aria-label="Anaglyph color rendering" />
-                        <button type="button" onClick={() => setColorAmount(100)} className={colorAmount === 100 ? 'active' : ''}>Full color</button>
-                    </div>
-                    <small>{colorLabel}</small>
-                </div>
+                <label><span>Calibration target</span><select value={s.target} onChange={(e) => update('anaglyph', { target: e.target.value as typeof s.target })}><option value="screen">Screen / emitted light</option><option value="print">Print / reflected light</option></select></label>
+                <label><span>Glasses / filter pair</span><select value={s.glasses} onChange={(e) => applyAnaglyphPreset(e.target.value as typeof s.glasses)}><option value="red-cyan">Red / Cyan</option><option value="red-green">Red / Green</option><option value="red-blue">Red / Blue</option><option value="yellow-blue">Yellow / Blue</option><option value="yellow-magenta">Yellow / Magenta</option><option value="custom">Custom / any colors</option></select></label>
             </div>
-            <p className="techniqueHint">Slide continuously from grayscale to full color. The midpoint reproduces the previous half-color treatment, while the two end buttons jump directly to grayscale or full color.</p>
+            <div className="techniqueGrid two">
+                <label><span>Left-eye output color</span><div className="inlineRange"><input type="color" value={calibration.leftColor} onChange={(e) => updateAnaglyphCalibration({ leftColor: e.target.value })} /><input type="text" value={calibration.leftColor} onChange={(e) => updateAnaglyphCalibration({ leftColor: e.target.value })} /></div></label>
+                <label><span>Right-eye output color</span><div className="inlineRange"><input type="color" value={calibration.rightColor} onChange={(e) => updateAnaglyphCalibration({ rightColor: e.target.value })} /><input type="text" value={calibration.rightColor} onChange={(e) => updateAnaglyphCalibration({ rightColor: e.target.value })} /></div></label>
+                <label><span>Left intensity</span><div className="inlineRange"><input type="range" min="10" max="150" step="1" value={calibration.leftGain} onChange={(e) => updateAnaglyphCalibration({ leftGain: Number(e.target.value) })} /><strong>{calibration.leftGain}%</strong></div></label>
+                <label><span>Right intensity</span><div className="inlineRange"><input type="range" min="10" max="150" step="1" value={calibration.rightGain} onChange={(e) => updateAnaglyphCalibration({ rightGain: Number(e.target.value) })} /><strong>{calibration.rightGain}%</strong></div></label>
+            </div>
+            {s.glasses !== 'custom' && <div className="colorRenderField">
+                <span>Color rendering</span>
+                <div className="colorRenderSlider">
+                    <button type="button" onClick={() => setColorAmount(0)} className={colorAmount === 0 ? 'active' : ''}>Grayscale</button>
+                    <input type="range" min="0" max="100" step="1" value={colorAmount} onChange={(e) => setColorAmount(Number(e.target.value))} aria-label="Anaglyph color rendering" />
+                    <button type="button" onClick={() => setColorAmount(100)} className={colorAmount === 100 ? 'active' : ''}>Full color</button>
+                </div>
+                <small>{colorLabel}</small>
+            </div>}
+            <div className="calibrationBox">
+                <div><strong>{s.target === 'screen' ? 'Screen profile' : 'Print profile'}</strong><span>Adjust the two output colors and intensities while viewing through the actual filters. Minimize the wrong-eye image rather than trying to match the apparent lens color. Screen and print values are saved separately.</span></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginTop:'10px'}}>
+                    <div style={{height:'54px',background:calibration.leftColor,opacity:Math.min(1,calibration.leftGain/100),border:'1px solid #777'}} title="Left-eye calibration swatch" />
+                    <div style={{height:'54px',background:calibration.rightColor,opacity:Math.min(1,calibration.rightGain/100),border:'1px solid #777'}} title="Right-eye calibration swatch" />
+                </div>
+                <strong className="printWarning">{s.target === 'print' ? 'PRINT THE TEST AT 100% / ACTUAL SIZE. Printer, ink, paper, and lighting all affect the result.' : 'CALIBRATE ON THE ACTUAL DISPLAY AND BRIGHTNESS YOU PLAN TO USE.'}</strong>
+            </div>
+            <p className="techniqueHint">Yellow presets are included for experimental color-filter work. Custom mode accepts any two RGB colors and renders luminance through those calibrated colors.</p>
         </>;
     }
 
