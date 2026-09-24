@@ -5,6 +5,10 @@
 
 Anaglyph & Friends turns one ordinary photograph into a growing collection of stereoscopic, autostereoscopic, viewer-specific, animated, and print-oriented 3D formats using a **Depth Anything V2** monocular depth estimate.
 
+**Public web app:** https://anaglyph-and-friends.onrender.com
+
+The hosted edition runs Depth Anything V2 in the visitor's browser, then uses the lightweight hosted backend for stereo/output rendering. The local edition retains the Python/PyTorch model and can work offline after setup. Render's free service can take tens of seconds to wake after inactivity.
+
 **This expanded version was created with help from ChatGPT.** If you are new to GitHub, Terminal, Python, or Node, using ChatGPT as an installation companion is a perfectly reasonable way to get started. Give it the URL of this repository and ask something like:
 
 > I want to use this on my computer, but I am new to GitHub and Terminal. Please walk me through it one step at a time, and wait for me after each step.
@@ -15,7 +19,7 @@ The original Anaglyph AI project and hosted demonstration were created by **Duy 
 
 ## New to GitHub? Start here
 
-This project is currently a **local application**, not yet a normal double-clickable Mac app. You do not need to understand the code to use it, but the first setup does use Terminal.
+You can use the **hosted web edition** without installing anything, or run the **local edition** on your own computer. The local edition is not yet a normal double-clickable Mac app, so its first setup uses Terminal.
 
 The beginner guide below is for **macOS**, which is the environment this version has actually been tested on. Windows and Linux should use the same overall architecture, but some installation and virtual-environment commands differ.
 
@@ -210,6 +214,26 @@ A useful prompt is:
 
 > I am trying to run https://github.com/udeudeude/Anaglyph-and-Friends on my Mac. I am new to GitHub. I got the following error during setup. Please explain what it means and give me only the next step to try: [paste error here]
 
+## Hosted vs local processing
+
+The two editions deliberately split the expensive depth-estimation step differently:
+
+- **Hosted web edition:** Depth Anything V2 runs in the browser (WebGPU where available, otherwise browser CPU). This avoids trying to fit PyTorch and the model into Render's small free server. The generated depth map is then sent to the backend for the established stereo and print pipeline.
+- **Local edition:** the Python backend runs Depth Anything V2 directly with PyTorch. This remains the better route for offline use and for machines where browser inference is undesirable.
+
+Both editions can also use an imported depth map or an imported left/right stereo pair.
+
+## Known validation / roadmap
+
+The current code intentionally leaves a few things pending rather than pretending uncertain physical details are exact:
+
+- **Render stability:** verify the lightweight hosted build stays below the free instance memory limit during repeated real use.
+- **Color-filter calibration:** arbitrary two-color anaglyph screen/print profiles and the RGB-reveal/CMY-layer workspace are implemented on a separate validated branch, pending merge after hosted stability is confirmed.
+- **View-Master physical geometry:** reel/frame/transport dimensions are still labeled prototype until checked against a real reel with measurements.
+- **Single-mirror stereoscope layout:** the DK-style mirror-viewing output discussed during development is not implemented yet; it needs a generic layout first, then optional real-book measurements.
+- **Polarized projection:** software alignment, crosstalk tests, linear/circular choices, and projector exports are implemented, but real two-projector/filter/silver-screen testing remains hardware-dependent.
+- **Physical color-filter calibration:** exact screen and print profiles require the actual glasses/filters, display, printer, ink, paper, and illumination.
+
 ## Current techniques
 
 ### Direct stereo / glasses
@@ -280,7 +304,8 @@ Device- and print-specific information is deliberately hidden until that techniq
 
 The local frontend is a dark desktop-style workspace with:
 
-- top-level **3D Studio**, **Phantogram**, and **View-Master Reel** workspaces;
+- top-level **3D Studio**, **View-Master Reel**, and **Polarized Projection** workspaces;
+- **Phantogram** lives under **More techniques -> Print** inside 3D Studio;
 - drag-and-drop, file-picker, and clipboard-paste image loading;
 - full-resolution source retention;
 - source and depth-map inspection views;
