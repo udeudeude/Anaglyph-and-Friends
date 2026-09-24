@@ -9,7 +9,6 @@ from PIL import Image, ImageOps
 import cv2
 import numpy as np
 
-from depth_map_generator import depth_map_generator
 from anaglyph_generator import anaglyph_generator
 from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram
@@ -197,10 +196,15 @@ def upload_pattern():
         return jsonify({"error": str(e)}), 400
 
 
+def colour_depth_map_lightweight(depth_map):
+    gray = np.clip(depth_map * 255.0, 0, 255).astype(np.uint8)
+    return cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
+
+
 def save_active_depth(depth_map):
     depth_map = np.clip(depth_map, 0.0, 1.0).astype(np.float32)
     np.save(session_path("depth_map.npy"), depth_map, allow_pickle=False)
-    coloured = depth_map_generator.colour_depth_map(depth_map)
+    coloured = colour_depth_map_lightweight(depth_map)
     coloured_preview, _ = resize_image_and_depth(coloured, depth_map, PREVIEW_MAX_DIMENSION)
     cv2.imwrite(session_path("depth_map_coloured.jpg"), coloured_preview, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
     gray16 = np.round(depth_map * 65535.0).astype(np.uint16)
@@ -217,6 +221,7 @@ def get_ai_depth():
     image = cv2.imread(session_path("image.png"))
     if image is None:
         raise FileNotFoundError("No uploaded source image is available")
+    from depth_map_generator import depth_map_generator
     depth_map = depth_map_generator.generate_depth_map(image)
     depth_map = np.clip(depth_map_generator.blur_depth_map(depth_map, KERNEL_WIDTH), 0.0, 1.0).astype(np.float32)
     np.save(ai_path, depth_map, allow_pickle=False)
@@ -335,7 +340,7 @@ def download_depth_map():
             return send_file(session_path("depth_map.npy"), as_attachment=True, download_name="depth-map-float32.npy", mimetype="application/octet-stream")
         if kind == "color":
             depth_map = np.load(session_path("depth_map.npy"), allow_pickle=False).astype(np.float32)
-            coloured = depth_map_generator.colour_depth_map(depth_map)
+            coloured = colour_depth_map_lightweight(depth_map)
             ok, encoded = cv2.imencode(".png", coloured)
             if not ok:
                 raise RuntimeError("Could not encode color depth map")

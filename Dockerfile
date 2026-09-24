@@ -21,25 +21,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git libgl1 libglib2.0-0 \
+      libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install -r /app/backend/requirements.txt
-
-# The original project keeps Depth Anything V2 source and model weights out of
-# git. A hosted build reconstructs those dependencies from the official project.
-RUN git clone --depth 1 https://github.com/DepthAnything/Depth-Anything-V2.git /tmp/depth-anything \
-    && mkdir -p /app/backend/ai_models/Depth_Anything_V2 \
-    && cp -R /tmp/depth-anything/depth_anything_v2 /app/backend/ai_models/Depth_Anything_V2/ \
-    && mkdir -p /app/backend/ai_models/checkpoints \
-    && python - <<'PY'
-import urllib.request
-url = 'https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth'
-out = '/app/backend/ai_models/checkpoints/depth_anything_v2_vits.pth'
-urllib.request.urlretrieve(url, out)
-print('Downloaded Depth Anything V2 Small checkpoint')
-PY
+COPY backend/requirements-hosted.txt /app/backend/requirements-hosted.txt
+RUN pip install -r /app/backend/requirements-hosted.txt
 
 COPY backend/ /app/backend/
 COPY --from=frontend /src/frontend/dist /app/frontend/dist
