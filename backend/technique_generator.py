@@ -279,8 +279,8 @@ class TechniqueGenerator:
         reproduce a particular commercial/book viewer.
         """
         dpi = max(72, min(1200, int(dpi)))
-        cw = max(600, int(round(max(2.0, card_width_in) * dpi)))
-        ch = max(300, int(round(max(2.0, card_height_in) * dpi)))
+        cw = max(1, int(round(max(2.0, card_width_in) * dpi)))
+        ch = max(1, int(round(max(2.0, card_height_in) * dpi)))
         iw = max(120, int(round(max(0.5, image_width_in) * dpi)))
         ih = max(120, int(round(max(0.5, image_height_in) * dpi)))
         gap = max(0, int(round(max(0.0, mirror_gap_in) * dpi)))
