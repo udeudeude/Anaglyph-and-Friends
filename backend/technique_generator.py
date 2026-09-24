@@ -259,6 +259,60 @@ class TechniqueGenerator:
             draw.text((cw - x0 - (box[2] - box[0]), lower_y), text, fill=fg, font=publisher_font)
         return cv2.cvtColor(np.array(card), cv2.COLOR_RGB2BGR)
 
+    def mirror_stereoscope(
+        self,
+        left: np.ndarray,
+        right: np.ndarray,
+        dpi: int = 300,
+        card_width_in: float = 8.0,
+        card_height_in: float = 4.0,
+        image_width_in: float = 3.0,
+        image_height_in: float = 3.0,
+        mirror_gap_in: float = 0.5,
+        reflected_eye: str = "right",
+        show_guide: bool = True,
+    ) -> np.ndarray:
+        """Lay out a stereo pair for viewing with a single vertical mirror.
+
+        One eye image is horizontally reversed so the mirror restores its normal
+        orientation. Geometry is deliberately generic rather than claiming to
+        reproduce a particular commercial/book viewer.
+        """
+        dpi = max(72, min(1200, int(dpi)))
+        cw = max(600, int(round(max(2.0, card_width_in) * dpi)))
+        ch = max(300, int(round(max(2.0, card_height_in) * dpi)))
+        iw = max(120, int(round(max(0.5, image_width_in) * dpi)))
+        ih = max(120, int(round(max(0.5, image_height_in) * dpi)))
+        gap = max(0, int(round(max(0.0, mirror_gap_in) * dpi)))
+
+        total = iw * 2 + gap
+        if total > cw:
+            scale = cw / total
+            iw = max(1, int(round(iw * scale)))
+            ih = max(1, int(round(ih * scale)))
+            gap = max(0, int(round(gap * scale)))
+            total = iw * 2 + gap
+
+        canvas = np.full((ch, cw, 3), 255, dtype=np.uint8)
+        x0 = max(0, (cw - total) // 2)
+        y0 = max(0, (ch - ih) // 2)
+        reflected_eye = "left" if str(reflected_eye).lower() == "left" else "right"
+
+        left_use = cv2.flip(left, 1) if reflected_eye == "left" else left
+        right_use = cv2.flip(right, 1) if reflected_eye == "right" else right
+        canvas[y0:y0 + ih, x0:x0 + iw] = self._fit_bgr(left_use, iw, ih, background=(255, 255, 255))
+        right_x = x0 + iw + gap
+        canvas[y0:y0 + ih, right_x:right_x + iw] = self._fit_bgr(right_use, iw, ih, background=(255, 255, 255))
+
+        if show_guide:
+            center = x0 + iw + gap // 2
+            line = max(1, int(round(dpi / 150)))
+            cv2.line(canvas, (center, max(0, y0 - int(.18 * dpi))), (center, min(ch - 1, y0 + ih + int(.18 * dpi))), (128, 128, 128), line, cv2.LINE_AA)
+            if gap > 0:
+                cv2.line(canvas, (x0 + iw, y0), (x0 + iw, y0 + ih), (210, 210, 210), line)
+                cv2.line(canvas, (right_x, y0), (right_x, y0 + ih), (210, 210, 210), line)
+        return canvas
+
     @staticmethod
     def _default_pattern(height: int, width: int, style: str = "houndstooth") -> np.ndarray:
         if style == "checker":
