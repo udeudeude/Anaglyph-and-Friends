@@ -112,6 +112,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     };
 
     const directUrl = (technique: TechniqueId, scope: 'preview' | 'full') => {
+        const calibration = appliedSettings.anaglyph[appliedSettings.anaglyph.target];
         const params = new URLSearchParams({
             scope,
             format: downloadFormat,
@@ -122,6 +123,11 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             optimised_RR_anaglyph: String(optimiseRRAnaglyph),
             anaglyph_type: appliedSettings.anaglyph.glasses,
             anaglyph_color: appliedSettings.anaglyph.colorMode,
+            anaglyph_target: appliedSettings.anaglyph.target,
+            anaglyph_left_color: calibration.leftColor,
+            anaglyph_right_color: calibration.rightColor,
+            anaglyph_left_gain: String(calibration.leftGain),
+            anaglyph_right_gain: String(calibration.rightGain),
         });
         return `${apiUrl}/output/${technique}?${params.toString()}`;
     };
@@ -318,7 +324,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const compatibilitySelected = compatibilityTechniques.has(activeTechnique);
     const specialSelected = !coreTechniques.has(activeTechnique) && !compatibilitySelected;
     const showTechniqueSettings = activeTechnique === 'anaglyph' || specialSelected;
-    const showRetinalRivalry = activeTechnique === 'anaglyph' && appliedSettings.anaglyph.glasses === 'red-cyan' && appliedSettings.anaglyph.colorMode === 'full';
+    const showRetinalRivalry = activeTechnique === 'anaglyph' && appliedSettings.anaglyph.glasses === 'red-cyan' && appliedSettings.anaglyph.colorMode === 'full' && appliedSettings.anaglyph.target === 'screen';
 
     const genericSettings = (fullscreenMode = false) => <div className={`settingsCard ${usesStereo ? '' : 'nonStereo'} ${fullscreenMode ? 'fullscreenSettingsCard' : ''}`}>
         {usesStereo && <div className="settingGroup">
