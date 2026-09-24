@@ -88,7 +88,11 @@ function depthToPng(depth: any): Promise<Blob> {
     })
 }
 
-export const hostedBrowserDepthEnabled = () => import.meta.env.PROD && import.meta.env.VITE_FLASK_BACKEND_API_URL === '.'
+export const hostedBrowserDepthEnabled = () => {
+    if (!import.meta.env.PROD || typeof window === 'undefined') return false
+    const host = window.location.hostname.toLowerCase()
+    return !['localhost', '127.0.0.1', '::1'].includes(host)
+}
 
 export async function generateBrowserDepth(file: File, progress?: Progress): Promise<{ file: File; engine: string }> {
     const estimator = await createEstimator(progress)
