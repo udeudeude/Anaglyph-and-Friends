@@ -31,6 +31,37 @@ jobs:
         with:
           python-version: '3.10'
       - run: python -m py_compile backend/app.py backend/depth_map_generator.py backend/anaglyph_generator.py backend/technique_generator.py backend/phantogram_generator.py backend/depth_sources.py backend/stereo_formats.py
+      - name: Verify hosted build stays lightweight
+        run: |
+          ! grep -Eq '^(torch|torchvision|matplotlib|sympy|networkx|fsspec|filelock|mpmath)=' backend/requirements-hosted.txt
+          ! grep -q '^from depth_map_generator import depth_map_generator
+
+  technique-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==11.0.0
+      - run: python backend/test_technique_generator.py
+      - run: python backend/test_phantogram_generator.py
+ backend/app.py
+          ! grep -q '^from depth_map_generator import depth_map_generator
+
+  technique-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==11.0.0
+      - run: python backend/test_technique_generator.py
+      - run: python backend/test_phantogram_generator.py
+ backend/anaglyph_generator.py
+          grep -q 'requirements-hosted.txt' Dockerfile
+          ! grep -q 'Depth-Anything-V2.git' Dockerfile
 
   technique-smoke:
     runs-on: ubuntu-latest
