@@ -19,7 +19,7 @@ export type FilterCalibration = { leftColor: string; rightColor: string; leftGai
 
 export type TechniqueSettings = {
     anaglyph: {
-        glasses: 'red-cyan' | 'red-green' | 'red-blue' | 'yellow-blue' | 'yellow-magenta' | 'custom';
+        glasses: 'red-cyan' | 'red-green' | 'red-blue' | 'custom';
         colorMode: string;
         target: 'screen' | 'print';
         screen: FilterCalibration;
@@ -95,7 +95,7 @@ export const defaultTechniqueSettings: TechniqueSettings = {
 };
 
 export const techniqueInfo: Record<TechniqueId, {label: string; description: string; family: string}> = {
-    anaglyph: { label: 'Anaglyph', description: 'Color-filter stereo with standard, yellow, or fully custom filter profiles for screen and print.', family: 'Glasses' },
+    anaglyph: { label: 'Anaglyph', description: 'Color-filter stereo with standard or fully custom filter profiles for screen and print.', family: 'Glasses' },
     parallel: { label: 'Parallel', description: 'Left eye on left for relaxed / wall-eyed viewing without glasses.', family: 'Unaided stereo' },
     cross: { label: 'Cross-Eyed', description: 'Stereo pair swapped for cross-eyed viewing without glasses.', family: 'Unaided stereo' },
     chromadepth: { label: 'ChromaDepth', description: 'Encodes depth as spectral color for ChromaDepth glasses.', family: 'Glasses' },
