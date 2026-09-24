@@ -300,7 +300,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
 
             <div className="depthHeader"><span>{depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'}</span>{depthMapIsLoading && <span className="miniLoader" />}</div>
             <button className="depthPreview inspectButton" onClick={() => depthMapUrl && setInspect({url: depthMapUrl, label: depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'})} disabled={!depthMapUrl} title={depthMapUrl ? 'Click to inspect depth map' : undefined}>
-                {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" /> : <div className="depthPlaceholder">Depth estimation appears here</div>}
+                {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
             </button>
 
             {imageUrl && <div className="depthSourceControls">
