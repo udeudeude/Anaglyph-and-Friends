@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { downloadViewMasterPdf } from './viewMasterPdf'
+import { generateBrowserDepth, hostedBrowserDepthEnabled } from './browserDepth'
 import type { StudioSource } from './studioAssets'
 import './styles/ViewMasterBuilder.css'
 import './styles/ViewMasterPairSlots.css'
@@ -155,6 +156,7 @@ function downloadSvg(svg: string, filename: string) {
 
 function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourceConsumed, onOpenInStudio }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
+    const useBrowserDepth = hostedBrowserDepthEnabled()
     const [slots, setSlots] = useState<ReelSlot[]>(emptySlots)
     const [strength, setStrength] = useState(2)
     const [popOut, setPopOut] = useState(false)
@@ -248,10 +250,21 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
 
         setProgress(`Scene ${scene + 1} of 7: estimating depth…`)
         setProcessingStage('depth')
-        const depth = await fetch(`${apiUrl}/depth-map`, { credentials: 'include', headers: VIEWMASTER_HEADERS })
-        if (!depth.ok) {
-            const body = await depth.json().catch(() => ({}))
-            throw new Error(body.error || `Scene ${scene + 1}: depth estimation failed`)
+        if (useBrowserDepth) {
+            const generated = await generateBrowserDepth(file, message => setProgress(`Scene ${scene + 1} of 7: ${message}`))
+            const depthForm = new FormData()
+            depthForm.append('file', generated.file, generated.file.name)
+            const depth = await fetch(`${apiUrl}/depth-map/ai-import`, { method: 'POST', body: depthForm, credentials: 'include', headers: VIEWMASTER_HEADERS })
+            if (!depth.ok) {
+                const body = await depth.json().catch(() => ({}))
+                throw new Error(body.error || `Scene ${scene + 1}: browser depth import failed`)
+            }
+        } else {
+            const depth = await fetch(`${apiUrl}/depth-map`, { credentials: 'include', headers: VIEWMASTER_HEADERS })
+            if (!depth.ok) {
+                const body = await depth.json().catch(() => ({}))
+                throw new Error(body.error || `Scene ${scene + 1}: depth estimation failed`)
+            }
         }
 
         setProgress(`Scene ${scene + 1} of 7: building stereo pair…`)
