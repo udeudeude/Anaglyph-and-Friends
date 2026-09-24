@@ -545,6 +545,35 @@ def special_stereoscope():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/special/mirror-stereoscope", methods=["GET"])
+def special_mirror_stereoscope():
+    try:
+        pop_out, strength = parse_render_parameters()
+        scope = request.args.get("scope", "preview").lower()
+        dpi = max(72, min(1200, int(request.args.get("dpi", 300))))
+        render_dpi = min(dpi, 180) if scope == "preview" else dpi
+        left, right = stereo_arrays("preview" if scope == "preview" else "full", pop_out, strength, parse_swap_eyes())
+        output = technique_generator.mirror_stereoscope(
+            left,
+            right,
+            dpi=render_dpi,
+            card_width_in=float(request.args.get("card_width", 8.0)),
+            card_height_in=float(request.args.get("card_height", 4.0)),
+            image_width_in=float(request.args.get("image_width", 3.0)),
+            image_height_in=float(request.args.get("image_height", 3.0)),
+            mirror_gap_in=float(request.args.get("mirror_gap", 0.5)),
+            reflected_eye=request.args.get("reflected_eye", "right"),
+            show_guide=request.args.get("show_guide", "true").lower() == "true",
+        )
+        download = request.args.get("download", "false").lower() == "true"
+        if scope == "full":
+            pil = Image.fromarray(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+            return send_pil_png(pil, "single-mirror-stereoscope.png", dpi, download)
+        return send_cv_image(output, "single-mirror-stereoscope", "png", 100, download)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/special/autostereogram", methods=["GET"])
 def special_autostereogram():
     try:
