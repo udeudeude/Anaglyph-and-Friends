@@ -4,9 +4,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: FLASK_SECRET_KEY
         generateValue: true
-      - key: AAF_TORCH_DEVICE
-        value: cpu
