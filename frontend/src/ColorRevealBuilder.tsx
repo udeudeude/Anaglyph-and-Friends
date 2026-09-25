@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './styles/ColorRevealBuilder.css'
+import UiIcon from './UiIcon'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 
@@ -158,7 +159,7 @@ function ColorRevealBuilder({ setProcessingStage }: Props) {
             <label className="colorRevealFile">
                 {layer.url ? <img src={layer.url} alt={label + ' layer'} /> : <span>No image</span>}
                 <input type="file" accept="image/*" onChange={e => replaceLayer(key, e.target.files?.[0] || null)} />
-                <button type="button" onClick={e => (e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}>{layer.file ? 'Replace' : 'Choose image'}</button>
+                <button type="button" onClick={e => (e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}><UiIcon name="upload" /> {layer.file ? 'Replace' : 'Choose image'}</button>
             </label>
             <label><span>Ink strength</span><input type="range" min="0" max="150" value={layer.strength} onChange={e => setLayers(current => ({ ...current, [key]: { ...current[key], strength: Number(e.target.value) } }))} /><strong>{layer.strength}%</strong></label>
         </div>
@@ -189,7 +190,7 @@ function ColorRevealBuilder({ setProcessingStage }: Props) {
 
         <div className="colorRevealPreview" ref={previewRef}>
             {previewUrl ? <img src={previewUrl} alt="CMY color-filter preview" /> : <div><strong>Add three source layers</strong><span>Cyan + Magenta + Yellow</span></div>}
-            {previewUrl && <button onClick={() => previewRef.current?.requestFullscreen?.()}>Fullscreen preview</button>}
+            {previewUrl && <button onClick={() => previewRef.current?.requestFullscreen?.()}><UiIcon name="expand" /> Fullscreen preview</button>}
             {rendering && <span className="colorRevealBusy">Rendering…</span>}
         </div>
 
@@ -197,10 +198,10 @@ function ColorRevealBuilder({ setProcessingStage }: Props) {
         {dimensions && <p className="colorRevealFine">Each layer is center-cropped to the largest source dimensions. For precise registration, prepare all three source files at the same pixel dimensions.</p>}
 
         <div className="colorRevealDownloads">
-            <button disabled={!ready || rendering} onClick={() => void download('composite', 'cmy-rgb-reveal-composite.png')}>Download full-resolution CMY composite</button>
-            <button disabled={!ready || rendering} onClick={() => void download('red', 'cyan-layer-red-filter-proof.png')}>Download cyan separation proof</button>
-            <button disabled={!ready || rendering} onClick={() => void download('green', 'magenta-layer-green-filter-proof.png')}>Download magenta separation proof</button>
-            <button disabled={!ready || rendering} onClick={() => void download('blue', 'yellow-layer-blue-filter-proof.png')}>Download yellow separation proof</button>
+            <button disabled={!ready || rendering} onClick={() => void download('composite', 'cmy-rgb-reveal-composite.png')}><UiIcon name="download" /> Download full-resolution CMY composite</button>
+            <button disabled={!ready || rendering} onClick={() => void download('red', 'cyan-layer-red-filter-proof.png')}><UiIcon name="download" /> Download cyan separation proof</button>
+            <button disabled={!ready || rendering} onClick={() => void download('green', 'magenta-layer-green-filter-proof.png')}><UiIcon name="download" /> Download magenta separation proof</button>
+            <button disabled={!ready || rendering} onClick={() => void download('blue', 'yellow-layer-blue-filter-proof.png')}><UiIcon name="download" /> Download yellow separation proof</button>
         </div>
         <p className="colorRevealFine">The on-screen composite is an RGB approximation of subtractive CMY printing. Final physical results depend on printer, inks, paper, illumination, and the spectral transmission of the actual red/green/blue filters, so physical print calibration remains necessary.</p>
     </main>
