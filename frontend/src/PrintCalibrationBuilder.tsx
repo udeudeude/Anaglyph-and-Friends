@@ -130,7 +130,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
     useEffect(() => {
         localStorage.setItem('aaf-print-calibration-settings', JSON.stringify(settings))
-    }, [settings, profile.name, profile.printer, profile.paper])
+    }, [settings])
 
     useEffect(() => () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl)
@@ -237,7 +237,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
         if (settings.includeScale) {
             text('1 · PHYSICAL SCALE', margin, y, 9, 800)
             y += pt(11, dpi)
-            text('After printing, measure these. The 100 mm ruler should be exactly 100 mm and the inch ruler exactly 4 in.', margin, y, 7, 500)
+            text('Measure these after printing. If they are not exact, the printer or print dialog is scaling the page; fix that before trusting physical-size output.', margin, y, 7, 500)
             y += pt(13, dpi)
 
             const rulerX = margin
@@ -285,6 +285,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
         if (settings.includeRegistration) {
             text('2 · REGISTRATION', margin, y, 9, 800)
+            text('For overlays, duplex, or multiple passes. Ignore for ordinary one-pass prints.', margin + mm(39, dpi), y, 6, 500)
             y += pt(12, dpi)
             const targetY = y + mm(12, dpi)
             const drawTarget = (cx: number, cy: number) => {
@@ -301,7 +302,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
                 ctx.fillRect(cx - mm(.5, dpi), cy - mm(.5, dpi), mm(1, dpi), mm(1, dpi))
             }
             for (const x of [margin + mm(12, dpi), width / 2, width - margin - mm(12, dpi)]) drawTarget(x, targetY)
-            text('Use these crosses to judge duplex, overlay, or multi-pass registration.', margin, targetY + mm(15, dpi), 7, 500)
+            text('When layers or repeated passes are aligned, their crosshairs should land on the same centers.', margin, targetY + mm(15, dpi), 7, 500)
             y = targetY + mm(21, dpi)
             rule(y)
             y += pt(14, dpi)
@@ -309,6 +310,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
         if (settings.includeGray) {
             text('3 · GRAYSCALE / TONAL RESPONSE', margin, y, 9, 800)
+            text('Adjacent boxes should stay visibly different. Merging at either end shows lost shadow/highlight detail.', margin + mm(58, dpi), y, 6, 500)
             y += pt(12, dpi)
             const gap = mm(1.5, dpi)
             const cellW = (innerWidth - gap * 10) / 11
@@ -330,8 +332,9 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
         if (settings.includeColor) {
             text('4 · COLOR-FILTER / CMY CHECK', margin, y, 9, 800)
+            text('Use your real glasses/filters. Note which colors are suppressed, transmitted, or leak through.', margin + mm(54, dpi), y, 6, 500)
             y += pt(11, dpi)
-            text('Use this row to compare actual ink/display color and filter leakage. Record observations rather than assuming nominal colors are exact.', margin, y, 7, 500)
+            text('This helps tune print anaglyph and CMY/filter profiles to the actual printer, paper, ink, and filters.', margin, y, 7, 500)
             y += pt(11, dpi)
             const swatches = [
                 ['R', '#ff0000'], ['G', '#00ff00'], ['B', '#0000ff'],
@@ -378,6 +381,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
         if (settings.includeLineTests) {
             text('5 · FINE LINE / EDGE TEST', margin, y, 9, 800)
+            text('The smallest clean lines/bars show the detail limit of this printer + paper combination.', margin + mm(51, dpi), y, 6, 500)
             y += pt(12, dpi)
             const widthsMm = [0.1, 0.2, 0.3, 0.5, 1]
             widthsMm.forEach((lineMm, index) => {
@@ -462,7 +466,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
     useEffect(() => {
         void buildPreview()
-    }, [settings])
+    }, [settings, profile.name, profile.printer, profile.paper])
 
     const download = async () => {
         setBusy(true)
@@ -489,6 +493,17 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
             <div><strong>Ready-to-use default</strong><span>{pageLabel} · {settings.dpi} DPI</span></div>
             <p>For most users, that is all you need. Print the downloaded PNG at <strong>100% / Actual Size</strong>, with automatic fitting or borderless enlargement turned off.</p>
         </div>
+
+        <section className="printCalibrationGuide" aria-label="How to read the calibration sheet">
+            <h3>What the tests tell you</h3>
+            <div className="printCalibrationGuideGrid">
+                <div><strong>Physical scale</strong><span>Measure the rulers. If 100 mm is not 100 mm, the printer is resizing the page. Fix that before making View-Master, phantogram, stereoscope, or other size-sensitive prints.</span></div>
+                <div><strong>Registration</strong><span>Useful only when two prints/layers/passes must line up. Their crosshair centers should coincide. You can ignore this for ordinary one-pass printing.</span></div>
+                <div><strong>Grayscale</strong><span>You should be able to distinguish neighboring gray boxes. If several light or dark boxes look identical, the printer/paper is losing tonal detail there.</span></div>
+                <div><strong>Color / filters</strong><span>Look at the patches through the actual glasses or filters you plan to use. Record which colors disappear, darken, remain bright, or leak through. That is evidence for later color calibration.</span></div>
+                <div><strong>Fine lines</strong><span>Find the thinnest lines and tightest stripes that still print cleanly. Below that point, tiny details are likely to blur or merge.</span></div>
+            </div>
+        </section>
 
         <div className="printCalibrationPreview">
             {previewUrl ? <img src={previewUrl} alt="Print calibration sheet preview" /> : <div className="emptyStage">Building calibration preview…</div>}
@@ -535,11 +550,6 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
                 <button className="resetPrintDefaults" type="button" onClick={() => setSettings(DEFAULTS)}>Reset standard defaults</button>
             </div>
         </details>
-
-        <div className="printCalibrationWhy">
-            <strong>Why this is tucked away</strong>
-            <span>Normal 3D and print outputs keep their simple defaults. This workspace is for calibration only, so users who just want an image never have to deal with printer measurements or test targets.</span>
-        </div>
     </div>
 }
 
