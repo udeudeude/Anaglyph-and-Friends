@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { parseModelFile, renderModelPhantogram, type ModelMesh } from './modelPhantogram'
 import './styles/PhantogramBuilder.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type Glasses = 'red-cyan' | 'red-green' | 'red-blue'
-type SourceMode = 'relief' | 'model'
+type SourceMode = 'relief' | 'groundplane' | 'model'
+type PlanePoint = [number, number]
 
-type Props = { isDepthMapReady: boolean; setProcessingStage: (stage: ProcessingStage) => void }
+type Props = { isDepthMapReady: boolean; sourceFile: File | null; setProcessingStage: (stage: ProcessingStage) => void }
 type Settings = {
     dpi: number; widthIn: number; heightIn: number; viewDistanceIn: number; eyeHeightIn: number; ipdMm: number; reliefMm: number; glasses: Glasses; reverseDepth: boolean
     rotateX: number; rotateY: number; rotateZ: number; footprintPct: number
@@ -14,7 +16,9 @@ type Settings = {
 const defaults: Settings = { dpi: 300, widthIn: 8, heightIn: 6, viewDistanceIn: 20, eyeHeightIn: 14, ipdMm: 63, reliefMm: 35, glasses: 'red-cyan', reverseDepth: false, rotateX: 0, rotateY: 0, rotateZ: 0, footprintPct: 72 }
 const loadSettings = (): Settings => { try { return { ...defaults, ...JSON.parse(localStorage.getItem('aaf-phantogram-settings') || '{}') } } catch { return defaults } }
 
-function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
+const defaultPlaneCorners: PlanePoint[] = [[0.15, 0.15], [0.85, 0.15], [0.85, 0.85], [0.15, 0.85]]
+
+function PhantogramBuilder({ isDepthMapReady, sourceFile, setProcessingStage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const modelInputRef = useRef<HTMLInputElement>(null)
     const [sourceMode, setSourceMode] = useState<SourceMode>('relief')
@@ -25,10 +29,13 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
     const [loading, setLoading] = useState(false)
     const [downloading, setDownloading] = useState(false)
     const [error, setError] = useState('')
+    const [sourceUrl, setSourceUrl] = useState<string | null>(null)
+    const [planeCorners, setPlaneCorners] = useState<PlanePoint[]>(defaultPlaneCorners)
+    const [activeCorner, setActiveCorner] = useState(0)
 
-    const params = useMemo(() => new URLSearchParams({ dpi: String(settings.dpi), width_in: String(settings.widthIn), height_in: String(settings.heightIn), view_distance_in: String(settings.viewDistanceIn), eye_height_in: String(settings.eyeHeightIn), ipd_mm: String(settings.ipdMm), relief_mm: String(settings.reliefMm), glasses: settings.glasses, reverse_depth: String(settings.reverseDepth) }), [settings])
+    const params = useMemo(() => new URLSearchParams({ dpi: String(settings.dpi), width_in: String(settings.widthIn), height_in: String(settings.heightIn), view_distance_in: String(settings.viewDistanceIn), eye_height_in: String(settings.eyeHeightIn), ipd_mm: String(settings.ipdMm), relief_mm: String(settings.reliefMm), glasses: settings.glasses, reverse_depth: String(settings.reverseDepth), ground_plane: String(sourceMode === 'groundplane'), plane_corners: JSON.stringify(planeCorners) }), [settings, sourceMode, planeCorners])
     const modelSettings = useMemo(() => ({ widthIn: settings.widthIn, heightIn: settings.heightIn, dpi: settings.dpi, viewDistanceIn: settings.viewDistanceIn, eyeHeightIn: settings.eyeHeightIn, ipdMm: settings.ipdMm, reliefMm: settings.reliefMm, glasses: settings.glasses, rotateX: settings.rotateX, rotateY: settings.rotateY, rotateZ: settings.rotateZ, footprintPct: settings.footprintPct }), [settings])
-    const ready = sourceMode === 'model' ? !!model : isDepthMapReady
+    const ready = sourceMode === 'model' ? !!model : sourceMode === 'groundplane' ? isDepthMapReady && !!sourceFile : isDepthMapReady
     const presetValue = settings.widthIn === 8 && settings.heightIn === 6 ? '8x6' : settings.widthIn === 10 && settings.heightIn === 7.5 ? '10x7.5' : settings.widthIn === 7 && settings.heightIn === 5 ? '7x5' : 'custom'
     const glassesLabel: Record<Glasses, string> = { 'red-cyan': 'Red / Cyan', 'red-green': 'Red / Green', 'red-blue': 'Red / Blue' }
 
