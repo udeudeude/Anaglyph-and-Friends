@@ -6,6 +6,9 @@ import { renderStereoPairOutput, type PairTechnique } from './stereoPairRender'
 import './styles/StereoPairEditor.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
+type DepthPairTechnique = 'chromadepth' | 'wiggle' | 'randomdot' | 'pattern'
+type PairStudioTechnique = PairTechnique | DepthPairTechnique
+type DepthFit = 'crop' | 'fit' | 'stretch'
 
 type Props = {
     pair: StereoPairDraft
@@ -13,19 +16,20 @@ type Props = {
     onSendToViewMaster: () => void
 }
 
-const supported = new Set<PairTechnique>([
+const supported = new Set<PairStudioTechnique>([
     'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'mirror', 'lenticular',
     'topbottom', 'halfsbs', 'rowinterlaced', 'columninterlaced', 'checkerboard',
+    'chromadepth', 'wiggle', 'randomdot', 'pattern',
 ])
-
-const settingsTechniques = new Set<PairTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular'])
+const depthTechniques = new Set<DepthPairTechnique>(['chromadepth', 'wiggle', 'randomdot', 'pattern'])
+const settingsTechniques = new Set<PairStudioTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular', 'chromadepth', 'wiggle', 'randomdot', 'pattern'])
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings))
 
 function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const previewRef = useRef<HTMLDivElement>(null)
     const initialSettings = mergeStoredSettings(localStorage.getItem('aaf-technique-settings'))
-    const [activeTechnique, setActiveTechnique] = useState<PairTechnique>('anaglyph')
+    const [activeTechnique, setActiveTechnique] = useState<PairStudioTechnique>('anaglyph')
     const [draftSettings, setDraftSettings] = useState<TechniqueSettings>(() => cloneSettings(initialSettings))
     const [appliedSettings, setAppliedSettings] = useState<TechniqueSettings>(() => cloneSettings(initialSettings))
     const [swapEyes, setSwapEyes] = useState(false)
@@ -36,6 +40,10 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
     const [viewScale, setViewScale] = useState(100)
     const [downloadFormat, setDownloadFormat] = useState<'jpeg' | 'png'>('png')
     const [jpegQuality, setJpegQuality] = useState(95)
+    const [depthFit, setDepthFit] = useState<DepthFit>('crop')
+    const [depthInvert, setDepthInvert] = useState(false)
+    const [depthReady, setDepthReady] = useState(false)
+    const depthWorkspace = 'pair-depth'
 
     const pairReady = isCompletePair(pair)
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings)
@@ -46,6 +54,69 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         localStorage.setItem('aaf-technique-settings', JSON.stringify(draftSettings))
     }, [draftSettings])
 
+    useEffect(() => {
+        let cancelled = false
+        const prepare = async () => {
+            if (!pair.left || !pair.depth) {
+                setDepthReady(false)
+                return
+            }
+            setDepthReady(false)
+            setError('')
+            setProcessingStage('depth')
+            try {
+                const sourceForm = new FormData()
+                sourceForm.append('file', pair.left, pair.left.name || 'left-eye.png')
+                const sourceResponse = await fetch(`${apiUrl}/image`, {
+                    method: 'POST',
+                    body: sourceForm,
+                    credentials: 'include',
+                    headers: { 'X-AAF-Workspace': depthWorkspace },
+                })
+                if (!sourceResponse.ok) throw new Error(`Could not prepare left-eye depth source: ${sourceResponse.status}`)
+
+                const depthForm = new FormData()
+                depthForm.append('file', pair.depth, pair.depth.name || 'depth-map.png')
+                depthForm.append('mode', depthFit)
+                depthForm.append('invert', String(depthInvert))
+                const depthResponse = await fetch(`${apiUrl}/depth-map/import`, {
+                    method: 'POST',
+                    body: depthForm,
+                    credentials: 'include',
+                    headers: { 'X-AAF-Workspace': depthWorkspace },
+                })
+                const info = await depthResponse.json().catch(() => ({}))
+                if (!depthResponse.ok) throw new Error(info.error || `Could not prepare pair depth map: ${depthResponse.status}`)
+                if (!cancelled) {
+                    setDepthReady(true)
+                    setProcessingStage('ready')
+                }
+            } catch (caught) {
+                console.error(caught)
+                if (!cancelled) {
+                    setError(caught instanceof Error ? caught.message : 'Could not prepare optional pair depth map')
+                    setProcessingStage('error')
+                }
+            }
+        }
+        void prepare()
+        return () => { cancelled = true }
+    }, [apiUrl, pair.left, pair.depth, depthFit, depthInvert, setProcessingStage])
+
+    const depthSpecialUrl = (technique: DepthPairTechnique, scope: 'preview' | 'full') => {
+        const base = { scope, format: downloadFormat, quality: String(jpegQuality) }
+        if (technique === 'chromadepth') {
+            const s = appliedSettings.chromadepth
+            return `${apiUrl}/special/chromadepth?${new URLSearchParams({...base, color_strength: String(s.colorStrength), reverse: String(s.reverse)}).toString()}`
+        }
+        if (technique === 'wiggle') {
+            const s = appliedSettings.wiggle
+            return `${apiUrl}/special/wiggle?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration)}).toString()}`
+        }
+        const s = appliedSettings.autostereogram
+        return `${apiUrl}/special/autostereogram?${new URLSearchParams({...base, style: technique === 'pattern' ? 'pattern' : 'random', separation: String(s.separation), depth_strength: String(s.depthStrength), dot_size: String(s.dotSize), viewing: s.viewing, guides: String(s.guides), color: String(s.color), revision: String(s.patternRevision)}).toString()}`
+    }
+
     const renderPreview = async () => {
         if (!pairReady) {
             setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null })
@@ -55,15 +126,30 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         setError('')
         setProcessingStage('technique')
         try {
-            const rendered = await renderStereoPairOutput(pair, {
-                technique: activeTechnique,
-                settings: appliedSettings,
-                swapEyes,
-                scope: 'preview',
-                format: 'png',
-                quality: 95,
-            })
-            const nextUrl = URL.createObjectURL(rendered.blob)
+            let blob: Blob
+            if (depthTechniques.has(activeTechnique as DepthPairTechnique)) {
+                if (!pair.depth || !depthReady) {
+                    setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null })
+                    return
+                }
+                const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, 'preview'), {
+                    credentials: 'include',
+                    headers: { 'X-AAF-Workspace': depthWorkspace },
+                })
+                if (!response.ok) throw new Error(`Depth-based pair preview failed: ${response.status}`)
+                blob = await response.blob()
+            } else {
+                const rendered = await renderStereoPairOutput(pair, {
+                    technique: activeTechnique as PairTechnique,
+                    settings: appliedSettings,
+                    swapEyes,
+                    scope: 'preview',
+                    format: 'png',
+                    quality: 95,
+                })
+                blob = rendered.blob
+            }
+            const nextUrl = URL.createObjectURL(blob)
             setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return nextUrl })
             setProcessingStage('ready')
         } catch (caught) {
@@ -77,7 +163,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
     useEffect(() => {
         void renderPreview()
-    }, [pair.left, pair.right, activeTechnique, swapEyes, appliedSettings])
+    }, [pair.left, pair.right, pair.depth, activeTechnique, swapEyes, appliedSettings, depthReady])
 
     useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
@@ -89,19 +175,32 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         setError('')
         setProcessingStage('full')
         try {
-            const format = fixedPng ? 'png' : downloadFormat
-            const rendered = await renderStereoPairOutput(pair, {
-                technique: activeTechnique,
-                settings: appliedSettings,
-                swapEyes,
-                scope: 'full',
-                format,
-                quality: jpegQuality,
-            })
-            const url = URL.createObjectURL(rendered.blob)
+            const depthBased = depthTechniques.has(activeTechnique as DepthPairTechnique)
+            if (depthBased && !depthReady) throw new Error('Optional depth map is not ready yet.')
+            const format = activeTechnique === 'wiggle' ? 'gif' : fixedPng ? 'png' : downloadFormat
+            let blob: Blob
+            if (depthBased) {
+                const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, activeTechnique === 'wiggle' ? 'preview' : 'full'), {
+                    credentials: 'include',
+                    headers: { 'X-AAF-Workspace': depthWorkspace },
+                })
+                if (!response.ok) throw new Error(`Depth-based pair download failed: ${response.status}`)
+                blob = await response.blob()
+            } else {
+                const rendered = await renderStereoPairOutput(pair, {
+                    technique: activeTechnique as PairTechnique,
+                    settings: appliedSettings,
+                    swapEyes,
+                    scope: 'full',
+                    format: format as 'jpeg' | 'png',
+                    quality: jpegQuality,
+                })
+                blob = rendered.blob
+            }
+            const url = URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url
-            link.download = `imported-pair-${activeTechnique}.${format === 'jpeg' ? 'jpg' : 'png'}`
+            link.download = `imported-pair-${activeTechnique}.${format === 'jpeg' ? 'jpg' : format}`
             document.body.appendChild(link)
             link.click()
             link.remove()
@@ -130,7 +229,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
     }
 
     const selectMore = (value: string) => {
-        if (supported.has(value as PairTechnique)) setActiveTechnique(value as PairTechnique)
+        if (supported.has(value as PairStudioTechnique)) setActiveTechnique(value as PairStudioTechnique)
     }
 
     const specialSelected = !['anaglyph', 'parallel', 'cross'].includes(activeTechnique)
@@ -140,6 +239,9 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         if (activeTechnique === 'cardboard') return 'The two imported views are positioned directly for the selected phone-viewer geometry.'
         if (activeTechnique === 'stereoscope') return 'The imported left/right photographs are placed directly on the printable stereograph card.'
         if (activeTechnique === 'mirror') return 'One imported eye is horizontally reversed and placed across a configurable center mirror gap for single-mirror viewing.'
+        if (activeTechnique === 'chromadepth') return 'Uses the optional depth map with the LEFT-eye image to encode depth as spectral color.'
+        if (activeTechnique === 'wiggle') return 'Uses the optional depth map with the LEFT-eye image to synthesize additional virtual viewpoints.'
+        if (activeTechnique === 'randomdot' || activeTechnique === 'pattern') return 'Uses the optional depth map to generate an autostereogram; the imported right-eye image is not needed for this output.'
         return 'The supplied left and right images are used directly. No depth map or AI-generated second eye is involved.'
     }, [activeTechnique])
 
@@ -160,7 +262,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
                 <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
                 <optgroup label="Print"><option value="lenticular">Lenticular 3D · two-view</option></optgroup>
                 <optgroup label="Display & compatibility"><option value="halfsbs">Half-Width Side-by-Side</option><option value="topbottom">Top / Bottom Stereo</option><option value="rowinterlaced">Row-Interlaced</option><option value="columninterlaced">Column-Interlaced</option><option value="checkerboard">Checkerboard Stereo</option></optgroup>
-                <optgroup label="Requires source + depth map"><option disabled>ChromaDepth</option><option disabled>Wiggle-gram multi-view</option><option disabled>Random-Dot Stereogram</option><option disabled>Pattern Stereogram</option><option disabled>Phantogram</option></optgroup>
+                <optgroup label={pair.depth ? 'Optional depth map techniques' : 'Add optional depth map to unlock'}><option value="chromadepth" disabled={!pair.depth}>ChromaDepth</option><option value="wiggle" disabled={!pair.depth}>Wiggle-gram multi-view</option><option value="randomdot" disabled={!pair.depth}>Random-Dot Stereogram</option><option value="pattern" disabled={!pair.depth}>Pattern Stereogram</option><option disabled>Phantogram · use single-image Studio</option></optgroup>
             </select>
         </div>
 
@@ -178,10 +280,11 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
         <div className="settingsCard pairGenericSettings">
             <div className="settingGroup"><div className="settingTitle"><span>On-screen preview size</span><strong>{viewScale}%</strong></div><input type="range" min="35" max="100" step="1" value={viewScale} onChange={(event) => setViewScale(Number(event.target.value))} /></div>
-            <label className="toggleSetting"><span><strong>Swap left / right</strong><small>Reverse eye order without altering the imported files</small></span><input type="checkbox" checked={swapEyes} onChange={(event) => setSwapEyes(event.target.checked)} /></label>
+            <label className="toggleSetting"><span><strong>Swap left / right</strong><small>{depthTechniques.has(activeTechnique as DepthPairTechnique) ? 'Not used by depth-derived outputs' : 'Reverse eye order without altering the imported files'}</small></span><input type="checkbox" checked={swapEyes} disabled={depthTechniques.has(activeTechnique as DepthPairTechnique)} onChange={(event) => setSwapEyes(event.target.checked)} /></label>
+            {pair.depth && <div className="pairDepthSettings"><label><span>Depth alignment</span><select value={depthFit} onChange={(event) => setDepthFit(event.target.value as DepthFit)}><option value="crop">Crop to left eye</option><option value="fit">Fit inside left eye</option><option value="stretch">Stretch to left eye</option></select></label><label className="toggleSetting"><span><strong>Invert depth near / far</strong><small>Applies only to the optional pair depth map</small></span><input type="checkbox" checked={depthInvert} onChange={(event) => setDepthInvert(event.target.checked)} /></label><span className={depthReady ? 'pairDepthReady ready' : 'pairDepthReady'}>{depthReady ? 'Optional depth ready' : 'Preparing optional depth…'}</span></div>}
         </div>
 
-        {settingsVisible && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!pairReady} apiUrl={apiUrl} />}
+        {settingsVisible && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!pairReady || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)} apiUrl={apiUrl} workspace={depthTechniques.has(activeTechnique as DepthPairTechnique) ? depthWorkspace : undefined} />}
 
         {error && <div className="pairEditorError">{error}</div>}
 
