@@ -386,9 +386,10 @@ The source sidebar exposes:
 
 - **16-bit depth PNG**: full source dimensions, normalized 0-65535 depth values;
 - **Raw float32**: normalized depth in NumPy `.npy` format;
-- **Color map**: the colored visualization used by the interface.
+- **Color map**: the colored visualization used by the interface;
+- **Editable depth controls**: paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, or reset the edit session.
 
-The float32/16-bit products are preferable to the colored visualization for future image-processing work.
+Depth edits are applied to the underlying float32 map on the backend, not to the 8-bit color preview, so later downloads and 3D techniques use the edited high-precision data. The float32/16-bit products remain preferable to the colored visualization for external image-processing work.
 
 A replacement depth map can also be imported from PNG, JPEG, TIFF, WebP, or float32 `.npy` data. Imported maps can be cropped, fitted, or stretched to match the source and can have near/far depth inverted. The selected depth source is then used by all techniques.
 
@@ -442,6 +443,7 @@ Core:
 - `POST /pattern` - store an optional texture for pattern stereograms.
 - `GET /depth-map` - return the colored depth preview.
 - `GET /depth-map/download?kind=gray16|npy|color` - depth-map exports.
+- `POST /depth-map/edit` - float32 brush, levels/gamma/blur, and reset operations.
 - `GET /render` - build/cache the interactive ordinary stereo pair.
 - `GET /prepare-full` - build/cache a full-resolution ordinary stereo pair.
 - `GET /output/<kind>` - `anaglyph`, `parallel`, `cross`, `left`, or `right`.

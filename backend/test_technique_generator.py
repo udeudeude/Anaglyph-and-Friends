@@ -1,6 +1,6 @@
 import numpy as np
 
-from depth_sources import align_depth, normalise_depth
+from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, normalise_depth
 from stereo_formats import compatibility_stereo, make_anaglyph
 from technique_generator import technique_generator
 
@@ -47,6 +47,18 @@ def main():
     for mode in ('crop', 'fit', 'stretch'):
         aligned = align_depth(normalised, image.shape[1], image.shape[0], mode)
         assert aligned.shape == image.shape[:2]
+
+    editable = np.full((40, 60), 0.5, dtype=np.float32)
+    brushed = apply_depth_brush(editable, [{'x': 0.5, 'y': 0.5}], radius_fraction=0.1, delta=0.2)
+    assert brushed.dtype == np.float32 and brushed.shape == editable.shape
+    assert brushed[20, 30] > editable[20, 30]
+    assert brushed[0, 0] == editable[0, 0]
+    darkened = apply_depth_brush(brushed, [{'x': 0.5, 'y': 0.5}], radius_fraction=0.1, delta=-0.1)
+    assert darkened[20, 30] < brushed[20, 30]
+
+    adjusted = adjust_depth_map(np.linspace(0, 1, 2400, dtype=np.float32).reshape(40, 60), black=0.2, white=0.8, gamma=1.2, blur_radius=1.5)
+    assert adjusted.dtype == np.float32 and adjusted.shape == editable.shape
+    assert adjusted.min() >= 0 and adjusted.max() <= 1
 
     cardboard = technique_generator.cardboard(view, view, 640, 360, 121, 63, 0.92)
     assert cardboard.shape == (360, 640, 3)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, DragEvent as ReactDragEvent } from "react";
+import type { ChangeEvent, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from "react";
 import "./styles/ImageUpload.css";
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
 
@@ -31,6 +31,15 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [depthFit, setDepthFit] = useState<DepthFit>('crop');
     const [depthInvert, setDepthInvert] = useState(false);
     const [depthSourceMeta, setDepthSourceMeta] = useState('');
+    const [depthEditing, setDepthEditing] = useState(false);
+    const [brushDirection, setBrushDirection] = useState<'lighter' | 'darker'>('lighter');
+    const [brushSize, setBrushSize] = useState(5);
+    const [brushStrength, setBrushStrength] = useState(30);
+    const [editBlack, setEditBlack] = useState(0);
+    const [editWhite, setEditWhite] = useState(100);
+    const [editGamma, setEditGamma] = useState(1);
+    const [editBlur, setEditBlur] = useState(0);
+    const strokePointsRef = useRef<Array<{x: number; y: number}>>([]);
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const useBrowserDepth = hostedBrowserDepthEnabled();
 
@@ -145,6 +154,82 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         }
     };
 
+    const refreshEditedDepth = async () => {
+        setIsDepthMapReadyStateLifter(false);
+        await fetchDepthMap();
+    };
+
+    const postDepthEdit = async (payload: Record<string, unknown>) => {
+        setIsChangeAllowed(false);
+        setProcessingStage('depth');
+        try {
+            const response = await fetch(`${apiUrl}/depth-map/edit`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            const info = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(info.error || `Depth edit failed: ${response.status}`);
+            await refreshEditedDepth();
+        } catch (error) {
+            console.error(error);
+            setProcessingStage('error');
+        } finally {
+            setIsChangeAllowed(true);
+        }
+    };
+
+    const normalizedPointer = (event: ReactPointerEvent<HTMLElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        return {
+            x: Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width))),
+            y: Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height))),
+        };
+    };
+
+    const beginDepthStroke = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (!depthEditing || !depthMapUrl || !isChangeAllowed) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        strokePointsRef.current = [normalizedPointer(event)];
+    };
+
+    const continueDepthStroke = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (!depthEditing || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        event.preventDefault();
+        const next = normalizedPointer(event);
+        const previous = strokePointsRef.current[strokePointsRef.current.length - 1];
+        if (!previous || Math.hypot(next.x - previous.x, next.y - previous.y) > 0.003) strokePointsRef.current.push(next);
+    };
+
+    const finishDepthStroke = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (!depthEditing || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        event.preventDefault();
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        const points = strokePointsRef.current;
+        strokePointsRef.current = [];
+        if (!points.length) return;
+        const delta = (brushDirection === 'lighter' ? 1 : -1) * (brushStrength / 100) * 0.25;
+        void postDepthEdit({ operation: 'brush', points, radius: brushSize / 100, delta });
+    };
+
+    const applyDepthAdjustments = () => void postDepthEdit({
+        operation: 'adjust',
+        black: editBlack / 100,
+        white: editWhite / 100,
+        gamma: editGamma,
+        blur: editBlur,
+    });
+
+    const resetDepthEdits = () => {
+        setEditBlack(0);
+        setEditWhite(100);
+        setEditGamma(1);
+        setEditBlur(0);
+        void postDepthEdit({ operation: 'reset' });
+    };
+
     const normalizePastedFile = (file: File) => {
         if (file.name && file.name.includes('.')) return file;
         const extension = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
@@ -167,6 +252,11 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         setDepthFit('crop');
         setDepthInvert(false);
         setDepthSourceMeta('Depth Anything V2 estimation');
+        setDepthEditing(false);
+        setEditBlack(0);
+        setEditWhite(100);
+        setEditGamma(1);
+        setEditBlur(0);
 
         const megabytes = file.size / (1024 * 1024);
         setSourceMeta(`${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB · original retained`);
@@ -299,9 +389,37 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             {sourceMeta && <div className="sourceMeta">{sourceMeta}</div>}
 
             <div className="depthHeader"><span>{depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'}</span>{depthMapIsLoading && <span className="miniLoader" />}</div>
-            <button className="depthPreview inspectButton" onClick={() => depthMapUrl && setInspect({url: depthMapUrl, label: depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'})} disabled={!depthMapUrl} title={depthMapUrl ? 'Click to inspect depth map' : undefined}>
-                {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
+            <button
+                className={`depthPreview inspectButton ${depthEditing ? 'editing' : ''}`}
+                onClick={() => !depthEditing && depthMapUrl && setInspect({url: depthMapUrl, label: depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'})}
+                onPointerDown={beginDepthStroke}
+                onPointerMove={continueDepthStroke}
+                onPointerUp={finishDepthStroke}
+                onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); strokePointsRef.current = []; }}
+                disabled={!depthMapUrl}
+                title={depthMapUrl ? (depthEditing ? 'Paint directly on the active depth map' : 'Click to inspect depth map') : undefined}
+            >
+                {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
             </button>
+
+            {depthMapUrl && <div className="depthEditorControls">
+                <button className={depthEditing ? 'depthEditToggle active' : 'depthEditToggle'} onClick={() => setDepthEditing(value => !value)} disabled={!isChangeAllowed}>{depthEditing ? 'Finish painting depth' : 'Edit depth map'}</button>
+                {depthEditing && <>
+                    <div className="depthBrushRow">
+                        <label><span>Brush</span><select value={brushDirection} onChange={(e) => setBrushDirection(e.target.value as typeof brushDirection)}><option value="lighter">Raise depth value</option><option value="darker">Lower depth value</option></select></label>
+                        <label><span>Brush size</span><input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} /><strong>{brushSize}%</strong></label>
+                        <label><span>Brush strength</span><input type="range" min="5" max="100" value={brushStrength} onChange={(e) => setBrushStrength(Number(e.target.value))} /><strong>{brushStrength}%</strong></label>
+                    </div>
+                    <p>Drag directly over the colored depth preview. The editor changes the underlying float32 depth map, not an 8-bit screenshot.</p>
+                </>}
+                <div className="depthAdjustGrid">
+                    <label><span>Black point</span><input type="number" min="0" max="99" value={editBlack} onChange={(e) => setEditBlack(Number(e.target.value))} /><small>%</small></label>
+                    <label><span>White point</span><input type="number" min="1" max="100" value={editWhite} onChange={(e) => setEditWhite(Number(e.target.value))} /><small>%</small></label>
+                    <label><span>Gamma</span><input type="number" min="0.1" max="5" step="0.05" value={editGamma} onChange={(e) => setEditGamma(Number(e.target.value))} /></label>
+                    <label><span>Blur</span><input type="number" min="0" max="100" step="0.5" value={editBlur} onChange={(e) => setEditBlur(Number(e.target.value))} /><small>px</small></label>
+                </div>
+                <div className="depthEditActions"><button onClick={applyDepthAdjustments} disabled={!isChangeAllowed || editWhite <= editBlack}>Apply levels / blur</button><button onClick={resetDepthEdits} disabled={!isChangeAllowed}>Reset depth edits</button></div>
+            </div>}
 
             {imageUrl && <div className="depthSourceControls">
                 <label><span>Depth source</span><select value={depthSource} disabled={!isChangeAllowed} onChange={(e) => void activateDepthSource(e.target.value as DepthSource)}><option value="ai">AI generated</option><option value="imported">Imported depth map</option></select></label>
