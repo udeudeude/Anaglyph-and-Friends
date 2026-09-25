@@ -28,6 +28,7 @@ const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.p
 function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const previewRef = useRef<HTMLDivElement>(null)
+    const preparedDepthSourceRef = useRef<File | null>(null)
     const initialSettings = mergeStoredSettings(localStorage.getItem('aaf-technique-settings'))
     const [activeTechnique, setActiveTechnique] = useState<PairStudioTechnique>('anaglyph')
     const [draftSettings, setDraftSettings] = useState<TechniqueSettings>(() => cloneSettings(initialSettings))
@@ -49,6 +50,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings)
     const info = techniqueInfo[activeTechnique]
     const fixedPng = activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular'
+    const fixedGif = activeTechnique === 'wiggle'
 
     useEffect(() => {
         localStorage.setItem('aaf-technique-settings', JSON.stringify(draftSettings))
@@ -65,15 +67,18 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
             setError('')
             setProcessingStage('depth')
             try {
-                const sourceForm = new FormData()
-                sourceForm.append('file', pair.left, pair.left.name || 'left-eye.png')
-                const sourceResponse = await fetch(`${apiUrl}/image`, {
-                    method: 'POST',
-                    body: sourceForm,
-                    credentials: 'include',
-                    headers: { 'X-AAF-Workspace': depthWorkspace },
-                })
-                if (!sourceResponse.ok) throw new Error(`Could not prepare left-eye depth source: ${sourceResponse.status}`)
+                if (preparedDepthSourceRef.current !== pair.left) {
+                    const sourceForm = new FormData()
+                    sourceForm.append('file', pair.left, pair.left.name || 'left-eye.png')
+                    const sourceResponse = await fetch(`${apiUrl}/image`, {
+                        method: 'POST',
+                        body: sourceForm,
+                        credentials: 'include',
+                        headers: { 'X-AAF-Workspace': depthWorkspace },
+                    })
+                    if (!sourceResponse.ok) throw new Error(`Could not prepare left-eye depth source: ${sourceResponse.status}`)
+                    preparedDepthSourceRef.current = pair.left
+                }
 
                 const depthForm = new FormData()
                 depthForm.append('file', pair.depth, pair.depth.name || 'depth-map.png')
@@ -275,7 +280,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
         <div className="pairPreviewMeta">
             <div><strong>{info.label}</strong><span>{pairNote}</span></div>
-            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}>Fullscreen</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading}>{downloading ? 'Preparing…' : 'Download'}</button></div>
+            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}>Fullscreen</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)}>{downloading ? 'Preparing…' : 'Download'}</button></div>
         </div>
 
         <div className="settingsCard pairGenericSettings">
@@ -291,8 +296,8 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         <div className="downloadPanel">
             <div className="downloadHeading"><div><strong>Imported stereo source</strong><span>Compatible outputs are rendered directly from the original left/right files at full resolution.</span></div><span className="fullResBadge">NO AI REQUIRED</span></div>
             <div className="downloadControls">
-                {fixedPng ? <div className="fixedFormat"><span>Format</span><strong>PNG</strong></div> : <label>Format<select value={downloadFormat} onChange={(event) => setDownloadFormat(event.target.value as 'jpeg' | 'png')}><option value="png">PNG</option><option value="jpeg">JPEG</option></select></label>}
-                {!fixedPng && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" value={jpegQuality} onChange={(event) => setJpegQuality(Number(event.target.value))} /><strong>{jpegQuality}</strong></label>}
+                {fixedGif ? <div className="fixedFormat"><span>Format</span><strong>GIF</strong></div> : fixedPng ? <div className="fixedFormat"><span>Format</span><strong>PNG</strong></div> : <label>Format<select value={downloadFormat} onChange={(event) => setDownloadFormat(event.target.value as 'jpeg' | 'png')}><option value="png">PNG</option><option value="jpeg">JPEG</option></select></label>}
+                {!fixedGif && !fixedPng && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" value={jpegQuality} onChange={(event) => setJpegQuality(Number(event.target.value))} /><strong>{jpegQuality}</strong></label>
                 <div className="eyeDownloads"><button onClick={() => downloadEye('left')} disabled={!pair.left}>Left eye</button><button onClick={() => downloadEye('right')} disabled={!pair.right}>Right eye</button></div>
                 <button className="pairToReel" onClick={onSendToViewMaster} disabled={!pairReady}>Add pair to View-Master</button>
             </div>
