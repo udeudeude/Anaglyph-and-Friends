@@ -5,6 +5,7 @@ export type TechniqueId =
     | 'chromadepth'
     | 'cardboard'
     | 'stereoscope'
+    | 'mirror'
     | 'wiggle'
     | 'randomdot'
     | 'pattern'
@@ -35,6 +36,10 @@ export type TechniqueSettings = {
         dpi: number; cardWidth: number; cardHeight: number; imageWidth: number; imageHeight: number;
         gap: number; arch: number; title: string; caption: string; publisher: string;
         cardTone: 'cream' | 'tan' | 'gray' | 'black' | 'white';
+    };
+    mirror: {
+        dpi: number; cardWidth: number; cardHeight: number; imageWidth: number; imageHeight: number;
+        mirrorGap: number; reflectedEye: 'left' | 'right'; showGuide: boolean;
     };
     wiggle: { frames: number; duration: number };
     autostereogram: {
@@ -78,6 +83,16 @@ export const defaultTechniqueSettings: TechniqueSettings = {
         publisher: 'Anaglyph & Friends',
         cardTone: 'white',
     },
+    mirror: {
+        dpi: 300,
+        cardWidth: 8,
+        cardHeight: 4,
+        imageWidth: 3,
+        imageHeight: 3,
+        mirrorGap: 0.5,
+        reflectedEye: 'right',
+        showGuide: true,
+    },
     wiggle: { frames: 7, duration: 75 },
     autostereogram: { separation: 8, depthStrength: 2.3, dotSize: 3, viewing: 'parallel', color: false, guides: true, patternRevision: 0 },
     lenticular: {
@@ -101,6 +116,7 @@ export const techniqueInfo: Record<TechniqueId, {label: string; description: str
     chromadepth: { label: 'ChromaDepth', description: 'Encodes depth as spectral color for ChromaDepth glasses.', family: 'Glasses' },
     cardboard: { label: 'Cardboard / Phone Viewer', description: 'Side-by-side stereo positioned for a phone VR viewer.', family: 'Viewers' },
     stereoscope: { label: 'Traditional Stereoscope Card', description: 'Printable arched stereograph card with mount and text.', family: 'Viewers' },
+    mirror: { label: 'Single-Mirror Stereoscope', description: 'Side-by-side stereo arranged around a center mirror gap, with one eye image horizontally reversed for reflection.', family: 'Viewers' },
     wiggle: { label: 'Wiggle-gram', description: 'Animated virtual viewpoints that reveal depth without glasses.', family: 'Animation' },
     randomdot: { label: 'Random-Dot Stereogram', description: 'Single-image autostereogram generated entirely from depth.', family: 'Autostereograms' },
     pattern: { label: 'Pattern Stereogram', description: 'Autostereogram using a repeating texture or your own pattern.', family: 'Autostereograms' },
@@ -113,7 +129,7 @@ export const techniqueInfo: Record<TechniqueId, {label: string; description: str
 };
 
 export const stereoBasedTechniques = new Set<TechniqueId>([
-    'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'wiggle', 'lenticular',
+    'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'mirror', 'wiggle', 'lenticular',
     'topbottom', 'halfsbs', 'rowinterlaced', 'columninterlaced', 'checkerboard',
 ]);
 
@@ -137,6 +153,7 @@ export function mergeStoredSettings(raw: string | null): TechniqueSettings {
             chromadepth: { ...defaultTechniqueSettings.chromadepth, ...(parsed.chromadepth || {}) },
             cardboard: { ...defaultTechniqueSettings.cardboard, ...(parsed.cardboard || {}) },
             stereoscope: storedStereoscope,
+            mirror: { ...defaultTechniqueSettings.mirror, ...(parsed.mirror || {}) },
             wiggle: storedWiggle,
             autostereogram: { ...defaultTechniqueSettings.autostereogram, ...(parsed.autostereogram || {}) },
             lenticular: { ...defaultTechniqueSettings.lenticular, ...(parsed.lenticular || {}) },
