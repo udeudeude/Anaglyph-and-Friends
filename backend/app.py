@@ -14,7 +14,6 @@ from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram
 from depth_sources import align_depth, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
-from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from werkzeug.utils import send_from_directory
 
@@ -43,8 +42,23 @@ def hello_world():
     return "Anaglyph & Friends backend"
 
 
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+
+last_cleanup_at = 0.0
+
+
 @app.before_request
 def assign_session_id():
+    global last_cleanup_at
+    if request.endpoint == "healthz":
+        return
+    current_time = time.time()
+    if current_time - last_cleanup_at > 60 * 60:
+        clear_old_session_files()
+        last_cleanup_at = current_time
     if "session_id" not in session:
         session["session_id"] = str(uuid.uuid4())
 
@@ -92,10 +106,6 @@ def clear_old_session_files():
             session_files_cleared += 1
     print(f"Session files cleared: {session_files_cleared}")
 
-
-clean_up_scheduler = BackgroundScheduler()
-clean_up_scheduler.add_job(clear_old_session_files, "interval", hours=1)
-clean_up_scheduler.start()
 
 
 def parse_render_parameters():
