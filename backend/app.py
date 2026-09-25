@@ -354,8 +354,10 @@ def load_depth_edit_history():
         with open(path, "r", encoding="utf-8") as handle:
             history = json.load(handle)
         ops = history.get("ops", [])
+        if not isinstance(ops, list):
+            ops = []
         cursor = max(0, min(len(ops), int(history.get("cursor", len(ops)))))
-        return {"ops": ops if isinstance(ops, list) else [], "cursor": cursor}
+        return {"ops": ops, "cursor": cursor}
     except (OSError, ValueError, TypeError):
         return {"ops": [], "cursor": 0}
 
