@@ -228,7 +228,7 @@ The two editions deliberately split the expensive depth-estimation step differen
 - **Hosted web edition:** Depth Anything V2 runs in the browser (WebGPU where available, otherwise browser CPU). This avoids trying to fit PyTorch and the model into Render's small free server. The generated depth map is then sent to the backend for the established stereo and print pipeline.
 - **Local edition:** the Python backend runs Depth Anything V2 directly with PyTorch. This remains the better route for offline use and for machines where browser inference is undesirable.
 
-Both editions can also use an imported depth map or an imported left/right stereo pair.
+Both editions can also use an imported depth map or an imported left/right stereo pair. Imported stereo pairs can optionally carry a depth map aligned to the left-eye image; that map unlocks ChromaDepth, multi-view wiggle, and random-dot/pattern autostereograms without pretending that depth can be recovered reliably from every arbitrary stereo pair.
 
 ## Known validation / roadmap
 
@@ -400,6 +400,8 @@ The source sidebar exposes:
 Depth edits are applied to the underlying float32 map on the backend, not to the 8-bit color preview, so later downloads and 3D techniques use the edited high-precision data. The float32/16-bit products remain preferable to the colored visualization for external image-processing work.
 
 A replacement depth map can also be imported from PNG, JPEG, TIFF, WebP, or float32 `.npy` data. Imported maps can be cropped, fitted, or stretched to match the source and can have near/far depth inverted. The selected depth source is then used by all techniques.
+
+In **Stereo pair** source mode, an additional optional depth file can be attached to the imported pair. It is explicitly registered to the left-eye image, with crop/fit/stretch and near/far inversion controls. Ordinary stereo outputs continue to use the original left/right images directly; ChromaDepth, wiggle-gram, and autostereogram outputs use the left-eye image plus this optional depth map in an isolated backend workspace.
 
 ## How conversion works
 
