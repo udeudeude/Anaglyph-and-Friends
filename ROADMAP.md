@@ -4,19 +4,13 @@ This file tracks ideas that are intentionally **not** part of the current implem
 
 ## Explicitly deferred larger projects
 
-1. **Editable depth maps**
-   - paint/erase depth corrections
-   - levels/contrast/blur controls
-   - local masking and edge cleanup
-   - preserve/export edited high-bit-depth depth data
-
-2. **Packaged macOS application**
+1. **Packaged macOS application**
    - double-click launch
    - bundle/start local backend automatically
    - eliminate Terminal setup for normal use
    - eventually consider signing/notarization and Intel/Apple Silicon packaging
 
-3. **Independent transparent 3D foreground layers**
+2. **Independent transparent 3D foreground layers**
    - import a transparent PNG as a movable object over the base photograph
    - estimate or import a separate depth map for that foreground object
    - synthesize the layer stereoscopically as well as the base image
@@ -24,6 +18,26 @@ This file tracks ideas that are intentionally **not** part of the current implem
    - control where the object sits in scene depth so it can appear in front of or behind existing geometry
    - preserve alpha edges cleanly in generated left/right views and final techniques
    - potentially support multiple independent 3D layers later
+
+## Editable depth maps — implemented core editor
+
+The active AI or imported depth source can now be corrected without flattening it to the color preview:
+
+- feathered paint brush that raises or lowers depth values
+- adjustable brush size and strength
+- black/white point adjustment
+- gamma adjustment
+- Gaussian blur
+- reset to the pre-edit active map
+- edits remain float32 internally and feed all downstream 3D techniques and high-bit-depth downloads
+
+Potential follow-up after real editing use:
+
+- polygon/lasso masks and selection feathering
+- edge-aware smoothing
+- clone/fill tools
+- undo/redo history beyond the current whole-session reset
+- split-view source/depth comparison at large scale
 
 ## Phantogram workspace — experimental implementation
 
