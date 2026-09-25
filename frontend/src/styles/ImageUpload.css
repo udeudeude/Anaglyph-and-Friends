@@ -98,3 +98,12 @@
   .depthWorkArea.active .depthPreview{grid-column:1;grid-row:2}
   .depthWorkArea.active .depthEditorControls{grid-column:1;grid-row:3;max-height:38vh}
 }
+
+.depthPreview.editing{position:relative}
+.depthSelectionRect{position:absolute;pointer-events:none;border:2px solid #7fc2ff;background:#4d9ce91f;box-shadow:0 0 0 9999px rgba(0,8,18,.18);border-radius:3px}
+.depthSelectionTools{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.depthSelectionTools button{border:1px solid #31557d;border-radius:7px;padding:7px 6px;background:#0f2339;color:#8fa9c5;font-size:9px;font-weight:800}
+.depthSelectionTools button.active{border-color:#5d9ddb;background:#1a426b;color:#e3f1ff}
+.depthSelectionTools button:disabled{opacity:.35}
+.selectionFeather{display:grid;grid-template-columns:1fr auto;grid-template-areas:'label value' 'range range';gap:4px;color:#7c95b1;font-size:9px}
+.selectionFeather span{grid-area:label}.selectionFeather strong{grid-area:value}.selectionFeather input{grid-area:range;width:100%}
