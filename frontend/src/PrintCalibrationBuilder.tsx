@@ -130,7 +130,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
 
     useEffect(() => {
         localStorage.setItem('aaf-print-calibration-settings', JSON.stringify(settings))
-    }, [settings])
+    }, [settings, profile.name, profile.printer, profile.paper])
 
     useEffect(() => () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl)
