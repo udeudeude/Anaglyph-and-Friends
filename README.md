@@ -322,7 +322,9 @@ The current code intentionally leaves physical calibration items explicit rather
   - optional saved printer/paper/material profiles and a setup JSON export for recording the exact test conditions
   - normal users do not encounter these controls unless they deliberately open the calibration tool
 - **Prepare print page** (under **More techniques -> Advanced tools**)
-  - place any finished PNG/JPEG/WebP artwork on a Letter, A4, or custom physical page
+  - send the current static 3D Studio output directly with **Prepare print page**, without downloading and re-uploading it
+  - imported stereo-pair Studio outputs can use the same direct handoff
+  - or place any finished PNG/JPEG/WebP artwork on a Letter, A4, or custom physical page
   - set intended artwork width and margins while preserving aspect ratio
   - optional crop marks, registration targets, 50 mm scale bar, title, print instructions, and page metadata
   - export a print-page PNG with embedded physical DPI metadata

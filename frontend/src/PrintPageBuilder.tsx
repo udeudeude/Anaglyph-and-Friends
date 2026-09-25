@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import UiIcon from './UiIcon'
 import './styles/PrintPageBuilder.css'
+import type { PrintPageIncomingArtwork, PrintPageSourceMetadata } from './printPageAssets'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type PagePreset = 'letter' | 'a4' | 'custom'
 
-type Props = { setProcessingStage: (stage: ProcessingStage) => void }
+type Props = {
+    setProcessingStage: (stage: ProcessingStage) => void
+    incomingArtwork?: PrintPageIncomingArtwork | null
+    onIncomingArtworkConsumed?: () => void
+}
 
 type Settings = {
     pagePreset: PagePreset
@@ -43,9 +48,10 @@ const crc32=(bytes:Uint8Array)=>{let crc=0xffffffff;for(const byte of bytes){crc
 const pngWithDpi=async(canvas:HTMLCanvasElement,dpi:number)=>{const raw=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PNG encoding failed')),'image/png'));const bytes=new Uint8Array(await raw.arrayBuffer());const len=12+((bytes[8]<<24)|(bytes[9]<<16)|(bytes[10]<<8)|bytes[11]);const at=8+len;const ppm=Math.round(dpi/.0254);const data=concat([writeU32(ppm),writeU32(ppm),new Uint8Array([1])]);const type=new TextEncoder().encode('pHYs');const chunk=concat([writeU32(data.length),type,data,writeU32(crc32(concat([type,data])))]);return new Blob([bytes.slice(0,at),chunk,bytes.slice(at)],{type:'image/png'})}
 const downloadBlob=(blob:Blob,name:string)=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200)}
 
-function PrintPageBuilder({ setProcessingStage }: Props) {
+function PrintPageBuilder({ setProcessingStage, incomingArtwork = null, onIncomingArtworkConsumed }: Props) {
     const input=useRef<HTMLInputElement>(null)
     const [artwork,setArtwork]=useState<File|null>(null)
+    const [sourceMetadata,setSourceMetadata]=useState<PrintPageSourceMetadata|null>(null)
     const [settings,setSettings]=useState<Settings>(()=>{try{return{...DEFAULTS,...JSON.parse(localStorage.getItem('aaf-print-page-settings')||'{}')}}catch{return DEFAULTS}})
     const [previewUrl,setPreviewUrl]=useState<string|null>(null)
     const [busy,setBusy]=useState(false)
@@ -54,6 +60,18 @@ function PrintPageBuilder({ setProcessingStage }: Props) {
     useEffect(()=>()=>{if(artworkUrl)URL.revokeObjectURL(artworkUrl)},[artworkUrl])
     useEffect(()=>{localStorage.setItem('aaf-print-page-settings',JSON.stringify(settings))},[settings])
     useEffect(()=>()=>{if(previewUrl)URL.revokeObjectURL(previewUrl)},[previewUrl])
+
+    useEffect(()=>{
+        if(!incomingArtwork)return
+        setArtwork(incomingArtwork.file)
+        setSourceMetadata(incomingArtwork.source)
+        setSettings(current=>({
+            ...current,
+            ...(incomingArtwork.source.suggestedArtworkWidthIn ? { artworkWidthIn: incomingArtwork.source.suggestedArtworkWidthIn } : {}),
+            ...(incomingArtwork.source.sourceDpi ? { dpi: incomingArtwork.source.sourceDpi } : {}),
+        }))
+        onIncomingArtworkConsumed?.()
+    },[incomingArtwork,onIncomingArtworkConsumed])
 
     const patch=(values:Partial<Settings>)=>setSettings(current=>({...current,...values}))
     const applyPreset=(preset:PagePreset)=>{
@@ -126,14 +144,20 @@ function PrintPageBuilder({ setProcessingStage }: Props) {
         catch(e){console.error(e);setProcessingStage('error')}
         finally{setBusy(false)}
     }
-    const downloadSettings=()=>downloadBlob(new Blob([JSON.stringify({format:'Anaglyph & Friends print page',version:1,settings,artwork:artwork?.name||null},null,2)],{type:'application/json'}),'print-page-settings.json')
+    const downloadSettings=()=>downloadBlob(new Blob([JSON.stringify({
+        format:'Anaglyph & Friends print page',
+        version:1,
+        settings,
+        artwork:artwork?.name||null,
+        source:sourceMetadata,
+    },null,2)],{type:'application/json'}),'print-page-settings.json')
 
     return <main className="printPageWorkspace">
         <header className="printPageHeader"><div><div className="panelLabel">PRINT TOOLS</div><h2>Prepare print page</h2><p>Put finished artwork on an actual-size page with optional crop marks, scale reference, identification, and instructions.</p></div><button className="printPagePrimary" disabled={!artwork||busy} onClick={()=>void download()}><UiIcon name="download"/>{busy?' Preparing…':' Download print page'}</button></header>
         <section className="printPageSimple">
             <button onClick={()=>input.current?.click()}><UiIcon name="upload"/>{artwork?' Replace artwork':' Choose artwork'}</button>
-            <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{setArtwork(e.target.files?.[0]||null);e.currentTarget.value=''}}/>
-            <div><strong>{artwork?.name||'No artwork selected'}</strong><span>{settings.pagePreset==='letter'?'US Letter':settings.pagePreset==='a4'?'A4':'Custom'} · {settings.dpi} DPI · artwork width {settings.artworkWidthIn}"</span></div>
+            <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{setArtwork(e.target.files?.[0]||null);setSourceMetadata(null);e.currentTarget.value=''}}/>
+            <div><strong>{artwork?.name||'No artwork selected'}</strong><span>{sourceMetadata ? `From 3D Studio · ${sourceMetadata.techniqueLabel} · ` : ''}{settings.pagePreset==='letter'?'US Letter':settings.pagePreset==='a4'?'A4':'Custom'} · {settings.dpi} DPI · artwork width {settings.artworkWidthIn}"</span></div>
         </section>
         <section className="printPagePreview">{previewUrl?<img src={previewUrl} alt="Print page preview"/>:<div><strong>Choose finished artwork</strong><span>Anaglyphs, stereoscope cards, phantograms, CMY work, and other image exports can all be placed here.</span></div>}</section>
         <details className="printPageAdvanced"><summary>Advanced page setup</summary><div className="printPageAdvancedBody">
