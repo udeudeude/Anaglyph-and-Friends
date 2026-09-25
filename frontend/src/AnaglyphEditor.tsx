@@ -27,7 +27,7 @@ const compatibilityTechniques = new Set<TechniqueId>(['topbottom', 'halfsbs', 'r
 const directOutputTechniques = new Set<TechniqueId>([...coreTechniques, ...compatibilityTechniques]);
 const allTechniques = new Set<TechniqueId>([
     ...directOutputTechniques,
-    'chromadepth', 'cardboard', 'stereoscope', 'mirror', 'wiggle', 'randomdot', 'pattern', 'lenticular',
+    'chromadepth', 'cardboard', 'stereoscope', 'mirror', 'wiggle', 'pulfrich', 'randomdot', 'pattern', 'lenticular',
 ]);
 const eyeOrderTechniques = new Set<TechniqueId>([
     ...directOutputTechniques,
@@ -105,6 +105,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         if (technique === 'wiggle') {
             const s = appliedSettings.wiggle;
             return `${apiUrl}/special/wiggle?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration)}).toString()}`;
+        }
+        if (technique === 'pulfrich') {
+            const s = appliedSettings.pulfrich;
+            return `${apiUrl}/special/pulfrich?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration), strength: String(s.strength), dark_eye: s.darkEye}).toString()}`;
         }
         if (technique === 'randomdot' || technique === 'pattern') {
             const s = appliedSettings.autostereogram;
@@ -227,7 +231,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     };
 
     const currentFilename = () => {
-        const ext = activeTechnique === 'wiggle' ? 'gif' : (activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'png' : downloadFormat === 'png' ? 'png' : 'jpg');
+        const ext = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'gif' : (activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'png' : downloadFormat === 'png' ? 'png' : 'jpg');
         const names: Record<TechniqueId, string> = {
             anaglyph: `${appliedSettings.anaglyph.glasses}-anaglyph`,
             parallel: 'parallel-stereo',
@@ -237,6 +241,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             stereoscope: 'stereoscope-card',
             mirror: 'single-mirror-stereoscope',
             wiggle: 'wiggle-gram',
+            pulfrich: 'pulfrich-motion-3d',
             randomdot: 'random-dot-stereogram',
             pattern: 'pattern-stereogram',
             lenticular: 'lenticular-interlaced',
@@ -261,7 +266,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 if (!prepare.ok) throw new Error(`Full-resolution stereo render failed: ${prepare.status}`);
                 url = directUrl(activeTechnique, 'full');
             } else {
-                url = specialUrl(activeTechnique, activeTechnique === 'wiggle' ? 'preview' : 'full');
+                url = specialUrl(activeTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full');
             }
             const response = await fetch(url, { method: 'GET', credentials: 'include' });
             if (!response.ok) throw new Error(`Final output failed: ${response.status}`);
@@ -334,7 +339,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const usesStereo = stereoBasedTechniques.has(activeTechnique);
     const usesEyeOrder = eyeOrderTechniques.has(activeTechnique);
-    const fixedFormat = activeTechnique === 'wiggle' ? 'GIF' : activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'PNG' : null;
+    const fixedFormat = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'GIF' : activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'PNG' : null;
     const info = techniqueInfo[activeTechnique];
     const compatibilitySelected = compatibilityTechniques.has(activeTechnique);
     const specialSelected = !coreTechniques.has(activeTechnique) && !compatibilitySelected;
@@ -374,7 +379,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <option value="" disabled>More techniques…</option>
                     <optgroup label="Glasses"><option value="chromadepth">ChromaDepth</option></optgroup>
                     <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
-                    <optgroup label="Animation"><option value="wiggle">Wiggle-gram</option></optgroup>
+                    <optgroup label="Animation"><option value="wiggle">Wiggle-gram</option><option value="pulfrich">Pulfrich Motion 3D</option></optgroup>
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
                     <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
                     <optgroup label="Compositing"><option value="__layered__">Layered 3D Composite</option></optgroup>
@@ -422,7 +427,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
 
             <div className="downloadPanel">
-                <div className="downloadHeading"><div><strong>Final output</strong><span>{activeTechnique === 'wiggle' ? 'Animated GIFs are exported at a playback-optimized raster size so the saved file can maintain its requested speed.' : 'Static techniques render from the full-resolution source. Print-specific formats use their selected physical dimensions and DPI.'}</span></div><span className="fullResBadge">FULL QUALITY</span></div>
+                <div className="downloadHeading"><div><strong>Final output</strong><span>{activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'Animated GIFs are exported at a playback-optimized raster size so the saved file can maintain its requested speed.' : 'Static techniques render from the full-resolution source. Print-specific formats use their selected physical dimensions and DPI.'}</span></div><span className="fullResBadge">FULL QUALITY</span></div>
                 <div className="downloadControls">
                     {fixedFormat ? <div className="fixedFormat"><span>Format</span><strong>{fixedFormat}</strong></div> : <label>Format<select value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png')}><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label>}
                     {!fixedFormat && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" step="1" value={jpegQuality} onChange={(e) => setJpegQuality(parseInt(e.target.value))} /><strong>{jpegQuality}</strong></label>}
