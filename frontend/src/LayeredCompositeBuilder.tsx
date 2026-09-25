@@ -48,6 +48,29 @@ const canvasBlob = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, re
     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not encode composite PNG')), 'image/png')
 })
 
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error || new Error('Could not read project image'))
+    reader.readAsDataURL(file)
+})
+
+const dataUrlToFile = async (dataUrl: string, name: string, type: string) => {
+    const blob = await (await fetch(dataUrl)).blob()
+    return new File([blob], name, { type: type || blob.type || 'image/png' })
+}
+
+const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1200)
+}
+
 const luminance = (r: number, g: number, b: number) => Math.round(.299 * r + .587 * g + .114 * b)
 const colorAmount = (mode: string) => mode === 'full' ? 1 : mode === 'half' ? .5 : mode === 'gray' ? 0 : Math.max(0, Math.min(1, Number(mode) / 100 || 0))
 const mix = (gray: number, color: number, amount: number) => Math.round(gray * (1 - amount) + color * amount)
@@ -179,6 +202,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const foregroundInput = useRef<HTMLInputElement>(null)
     const depthInput = useRef<HTMLInputElement>(null)
+    const projectInput = useRef<HTMLInputElement>(null)
     const previewRef = useRef<HTMLDivElement>(null)
     const [foreground, setForeground] = useState<File | null>(null)
     const [layerDepth, setLayerDepth] = useState<File | null>(null)
@@ -333,10 +357,39 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
         setLayerDepth(file)
     }
 
+    const saveProject = async () => {
+        const project = {
+            format: 'Anaglyph & Friends layered project',
+            version: 1,
+            mode,
+            settings,
+            foreground: foreground ? { name: foreground.name, type: foreground.type, data: await fileToDataUrl(foreground) } : null,
+            depth: layerDepth ? { name: layerDepth.name, type: layerDepth.type, data: await fileToDataUrl(layerDepth) } : null,
+        }
+        downloadBlob(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }), 'layered-3d-project.aaf-layered.json')
+    }
+
+    const loadProject = async (file: File | undefined) => {
+        if (!file) return
+        try {
+            const project = JSON.parse(await file.text())
+            if (project?.format !== 'Anaglyph & Friends layered project') throw new Error('Not an Anaglyph & Friends layered project')
+            setSettings({ ...defaults, ...(project.settings || {}) })
+            if (['anaglyph', 'parallel', 'cross', 'left', 'right'].includes(project.mode)) setMode(project.mode)
+            setForeground(project.foreground?.data ? await dataUrlToFile(project.foreground.data, project.foreground.name || 'foreground.png', project.foreground.type || 'image/png') : null)
+            setLayerDepth(project.depth?.data ? await dataUrlToFile(project.depth.data, project.depth.name || 'foreground-depth.png', project.depth.type || 'image/png') : null)
+            setError('')
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : 'Could not load layered project.')
+        }
+    }
+
     return <main className="layeredWorkspace">
         <section className="layeredIntro"><div><div className="panelLabel">COMPOSITING</div><h2>Layered 3D Composite</h2><p>Place a transparent foreground object over the current image, give it an independent stereo position, and optionally use a grayscale depth map to give the object internal relief.</p></div><div className="layeredBadge">ONE FOREGROUND LAYER</div></section>
 
         {!isDepthMapReady && <div className="layeredNotice"><strong>No base scene ready.</strong><span>Load a single image in 3D Studio first. The current source and active depth map generate the base stereo pair.</span></div>}
+
+        <div className="layeredProjectBar"><button onClick={() => void saveProject()}><UiIcon name="download" /> Save project</button><button onClick={() => projectInput.current?.click()}><UiIcon name="upload" /> Load project</button><input ref={projectInput} type="file" accept=".json,application/json" onChange={event => { void loadProject(event.target.files?.[0]); event.currentTarget.value = '' }} /></div>
 
         <div className="layeredGrid">
             <section className="layeredControls">
@@ -375,7 +428,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                 <div className="layeredPreview" ref={previewRef}>{previewUrl ? <img src={previewUrl} alt="Layered 3D composite"/> : <div><strong>Layered composite preview</strong><span>The current base stereo scene appears here. Add a foreground object when ready.</span></div>}{loading && <div className="layeredBusy">Rendering…</div>}</div>
                 <div className="layeredActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen</button><button onClick={() => void download()} disabled={!isDepthMapReady || downloading}>{downloading ? 'Preparing full resolution…' : <><UiIcon name="download" /> Download full-resolution PNG</>}</button></div>
                 {error && <div className="layeredError">{error}</div>}
-                <p className="layeredFine">Foreground alpha is preserved while the object is synthesized separately for each eye. A layer depth map is optional; without one, the object remains a flat stereo card at the selected depth position. This first compositor supports one independent foreground layer.</p>
+                <p className="layeredFine">Foreground alpha is preserved while the object is synthesized separately for each eye. A layer depth map is optional; without one, the object remains a flat stereo card at the selected depth position. Save Project embeds this foreground, its optional depth map, and all compositor settings so you can reopen the setup later. Multiple independent foreground layers are still the next compositor step.</p>
             </section>
         </div>
     </main>
