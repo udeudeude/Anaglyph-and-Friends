@@ -188,6 +188,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster, onPrep
     }
 
     const renderFullOutputBlob = async () => {
+        if (!isCompletePair(pair)) throw new Error('Both stereo images are required.')
         const depthBased = depthTechniques.has(activeTechnique as DepthPairTechnique)
         if (depthBased && !depthReady) throw new Error('Optional depth map is not ready yet.')
         const format = currentOutputFormat()
