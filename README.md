@@ -159,7 +159,14 @@ You should now see **Anaglyph & Friends**. Drop, choose, or paste an image into 
 
 You do **not** repeat the installation steps every time.
 
-Open one Terminal window for the backend:
+On macOS, after the one-time setup above is complete, you can use the small launchers in the repository's `macos` folder:
+
+- double-click **Anaglyph & Friends.app** to start both local servers and open the browser;
+- double-click **Stop Anaglyph & Friends.app** when you are finished.
+
+They use your existing local Python environment, Node installation, model files, and dependencies. They are deliberately small launchers rather than a self-contained signed distribution. Because they are not notarized, macOS may require **Control-click -> Open** the first time.
+
+You can still start the components manually. Open one Terminal window for the backend:
 
 ```bash
 cd ~/Desktop/Anaglyph-and-Friends/backend
