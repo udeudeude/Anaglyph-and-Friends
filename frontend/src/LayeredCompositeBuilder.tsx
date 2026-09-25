@@ -264,12 +264,12 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
     }
 
     useEffect(() => {
+        let cancelled = false
         if (!isDepthMapReady) {
             setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null })
-            return
+            return () => { cancelled = true }
         }
         const timer = window.setTimeout(async () => {
-            let cancelled = false
             setLoading(true)
             setError('')
             setProcessingStage('technique')
@@ -283,10 +283,12 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                 } else URL.revokeObjectURL(next)
             } catch (caught) {
                 console.error(caught)
-                setError(caught instanceof Error ? caught.message : 'Could not render layered composite.')
-                setProcessingStage('error')
+                if (!cancelled) {
+                    setError(caught instanceof Error ? caught.message : 'Could not render layered composite.')
+                    setProcessingStage('error')
+                }
             } finally {
-                setLoading(false)
+                if (!cancelled) setLoading(false)
             }
         }, 180)
         return () => {
