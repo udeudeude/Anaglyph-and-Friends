@@ -117,9 +117,23 @@ function PhantogramBuilder({ isDepthMapReady, sourceFile, setProcessingStage }: 
     return <main className="phantogramWorkspace">
         <section className="phantogramIntro"><div><div className="panelLabel">PHYSICAL PRINT</div><h2>Phantogram</h2><p>Projects physical 3D geometry independently from two eye positions onto a flat print plane. Build the geometry from an image + depth map, or import an actual 3D mesh.</p></div><div className="phantogramBadge">EXPERIMENTAL · GEOMETRIC</div></section>
 
-        <div className="phantogramSourceMode"><button className={sourceMode === 'relief' ? 'active' : ''} onClick={() => setSourceMode('relief')}><strong>Image + depth map</strong><span>Use the current 3D Studio source as a height field</span></button><button className={sourceMode === 'model' ? 'active' : ''} onClick={() => setSourceMode('model')}><strong>3D model</strong><span>Import GLB, OBJ, or STL geometry directly</span></button></div>
+        <div className="phantogramSourceMode"><button className={sourceMode === 'relief' ? 'active' : ''} onClick={() => setSourceMode('relief')}><strong>Image + depth map</strong><span>Use the current 3D Studio source as a height field</span></button><button className={sourceMode === 'groundplane' ? 'active' : ''} onClick={() => setSourceMode('groundplane')}><strong>Calibrated ground plane</strong><span>Mark a photographed rectangular plane and rectify it to the print</span></button><button className={sourceMode === 'model' ? 'active' : ''} onClick={() => setSourceMode('model')}><strong>3D model</strong><span>Import GLB, OBJ, or STL geometry directly</span></button></div>
 
         {sourceMode === 'relief' && !isDepthMapReady && <div className="phantogramNotice"><strong>No current source + depth map.</strong><span>Load an image in 3D Studio first. Phantogram uses that source and whichever AI or imported depth map is active.</span></div>}
+        {sourceMode === 'groundplane' && (!isDepthMapReady || !sourceFile) && <div className="phantogramNotice"><strong>Ground-plane mode needs the current image + depth map.</strong><span>Load a single image in 3D Studio, then mark the four corners of a rectangular physical plane visible in that photograph.</span></div>}
+        {sourceMode === 'groundplane' && sourceUrl && <section className="groundPlanePicker">
+            <div className="groundPlanePickerHeader"><div><span className="panelLabel">GROUND PLANE</span><strong>Mark the rectangle in perspective</strong></div><button onClick={() => { setPlaneCorners(defaultPlaneCorners); setActiveCorner(0) }}>Reset corners</button></div>
+            <p>Choose a corner number, then click its real location in the photograph. Order is 1 top-left, 2 top-right, 3 bottom-right, 4 bottom-left. The selected quadrilateral is rectified to the full print before physical eye projection.</p>
+            <div className="groundPlaneCornerButtons">{planeCorners.map((_, index) => <button key={index} className={activeCorner === index ? 'active' : ''} onClick={() => setActiveCorner(index)}>Corner {index + 1}</button>)}</div>
+            <div className="groundPlaneImage" onClick={setGroundPlaneCorner}>
+                <img src={sourceUrl} alt="Source for ground-plane selection" draggable={false}/>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <polygon points={planeCorners.map(point => `${point[0] * 100},${point[1] * 100}`).join(' ')} />
+                    {planeCorners.map((point, index) => <g key={index}><circle cx={point[0] * 100} cy={point[1] * 100} r="1.8"/><text x={point[0] * 100} y={point[1] * 100} dx="2" dy="-2">{index + 1}</text></g>)}
+                </svg>
+            </div>
+            <div className="phantogramNotice"><strong>Physical meaning</strong><span>The four marked points are assumed to be the corners of one flat rectangle. Print width and height below become that rectangle's physical dimensions.</span></div>
+        </section>}
         {sourceMode === 'model' && <div className="phantogramModelSource"><div><strong>{model ? '3D model loaded' : 'Import a 3D model'}</strong><span>{modelInfo || 'GLB 2.0, OBJ, and binary/ASCII STL are supported. GLB base-color materials are retained where available.'}</span></div><button onClick={() => modelInputRef.current?.click()}>{model ? 'Replace model' : 'Choose 3D model'}</button><input ref={modelInputRef} type="file" accept=".glb,.obj,.stl,model/gltf-binary,model/stl" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void loadModel(file) }}/></div>}
 
         <div className="phantogramGrid">
