@@ -5,6 +5,7 @@ import { isCompletePair, type StereoPairDraft } from './studioAssets'
 import { renderStereoPairOutput, type PairTechnique } from './stereoPairRender'
 import './styles/StereoPairEditor.css'
 import UiIcon from './UiIcon'
+import type { PrintPageIncomingArtwork } from './printPageAssets'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type DepthPairTechnique = 'chromadepth' | 'wiggle' | 'pulfrich' | 'randomdot' | 'pattern'
@@ -15,6 +16,7 @@ type Props = {
     pair: StereoPairDraft
     setProcessingStage: (stage: ProcessingStage) => void
     onSendToViewMaster: () => void
+    onPreparePrintPage: (incoming: PrintPageIncomingArtwork) => void
 }
 
 const supported = new Set<PairStudioTechnique>([
@@ -26,7 +28,7 @@ const depthTechniques = new Set<DepthPairTechnique>(['chromadepth', 'wiggle', 'p
 const settingsTechniques = new Set<PairStudioTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular', 'chromadepth', 'wiggle', 'pulfrich', 'randomdot', 'pattern'])
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings))
 
-function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Props) {
+function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster, onPreparePrintPage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const previewRef = useRef<HTMLDivElement>(null)
     const preparedDepthSourceRef = useRef<File | null>(null)
@@ -179,38 +181,46 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
     const applyTechniqueSettings = (settings?: TechniqueSettings) => setAppliedSettings(cloneSettings(settings || draftSettings))
 
+    const currentOutputFormat = () => activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'gif' : fixedPng ? 'png' : downloadFormat
+    const currentOutputFilename = () => {
+        const format = currentOutputFormat()
+        return `imported-pair-${activeTechnique}.${format === 'jpeg' ? 'jpg' : format}`
+    }
+
+    const renderFullOutputBlob = async () => {
+        const depthBased = depthTechniques.has(activeTechnique as DepthPairTechnique)
+        if (depthBased && !depthReady) throw new Error('Optional depth map is not ready yet.')
+        const format = currentOutputFormat()
+        if (depthBased) {
+            const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full'), {
+                credentials: 'include',
+                headers: { 'X-AAF-Workspace': depthWorkspace },
+            })
+            if (!response.ok) throw new Error(`Depth-based pair download failed: ${response.status}`)
+            return response.blob()
+        }
+        const rendered = await renderStereoPairOutput(pair, {
+            technique: activeTechnique as PairTechnique,
+            settings: appliedSettings,
+            swapEyes,
+            scope: 'full',
+            format: format as 'jpeg' | 'png',
+            quality: jpegQuality,
+        })
+        return rendered.blob
+    }
+
     const downloadCurrent = async () => {
         if (!pairReady || downloading) return
         setDownloading(true)
         setError('')
         setProcessingStage('full')
         try {
-            const depthBased = depthTechniques.has(activeTechnique as DepthPairTechnique)
-            if (depthBased && !depthReady) throw new Error('Optional depth map is not ready yet.')
-            const format = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'gif' : fixedPng ? 'png' : downloadFormat
-            let blob: Blob
-            if (depthBased) {
-                const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full'), {
-                    credentials: 'include',
-                    headers: { 'X-AAF-Workspace': depthWorkspace },
-                })
-                if (!response.ok) throw new Error(`Depth-based pair download failed: ${response.status}`)
-                blob = await response.blob()
-            } else {
-                const rendered = await renderStereoPairOutput(pair, {
-                    technique: activeTechnique as PairTechnique,
-                    settings: appliedSettings,
-                    swapEyes,
-                    scope: 'full',
-                    format: format as 'jpeg' | 'png',
-                    quality: jpegQuality,
-                })
-                blob = rendered.blob
-            }
+            const blob = await renderFullOutputBlob()
             const url = URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url
-            link.download = `imported-pair-${activeTechnique}.${format === 'jpeg' ? 'jpg' : format}`
+            link.download = currentOutputFilename()
             document.body.appendChild(link)
             link.click()
             link.remove()
@@ -219,6 +229,55 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         } catch (caught) {
             console.error(caught)
             setError(caught instanceof Error ? caught.message : 'Could not create full-resolution pair output')
+            setProcessingStage('error')
+        } finally {
+            setDownloading(false)
+        }
+    }
+
+    const prepareCurrentForPrintPage = async () => {
+        if (!pairReady || downloading || fixedGif) return
+        setDownloading(true)
+        setError('')
+        setProcessingStage('full')
+        try {
+            const blob = await renderFullOutputBlob()
+            const filename = currentOutputFilename()
+            const suggestedArtworkWidthIn = activeTechnique === 'stereoscope'
+                ? appliedSettings.stereoscope.cardWidth
+                : activeTechnique === 'mirror'
+                    ? appliedSettings.mirror.cardWidth
+                    : activeTechnique === 'lenticular'
+                        ? appliedSettings.lenticular.widthIn
+                        : undefined
+            const sourceDpi = activeTechnique === 'stereoscope'
+                ? appliedSettings.stereoscope.dpi
+                : activeTechnique === 'mirror'
+                    ? appliedSettings.mirror.dpi
+                    : activeTechnique === 'lenticular'
+                        ? appliedSettings.lenticular.dpi
+                        : undefined
+            const file = new File([blob], filename, { type: blob.type || (filename.endsWith('.png') ? 'image/png' : 'image/jpeg') })
+            onPreparePrintPage({
+                file,
+                source: {
+                    technique: activeTechnique,
+                    techniqueLabel: info.label,
+                    settings: {
+                        technique: cloneSettings(appliedSettings),
+                        swapEyes,
+                        outputFormat: downloadFormat,
+                        jpegQuality,
+                        importedStereoPair: true,
+                    },
+                    suggestedArtworkWidthIn,
+                    sourceDpi,
+                },
+            })
+            setProcessingStage('ready')
+        } catch (caught) {
+            console.error(caught)
+            setError(caught instanceof Error ? caught.message : 'Could not prepare pair output for Print Page')
             setProcessingStage('error')
         } finally {
             setDownloading(false)
@@ -302,7 +361,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
         <div className="pairPreviewMeta">
             <div><strong>{info.label}</strong><span>{pairNote}</span></div>
-            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)}>{downloading ? 'Preparing…' : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button></div>
+            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen</button><button className="printPageAction" onClick={() => void prepareCurrentForPrintPage()} disabled={!pairReady || downloading || fixedGif || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)} title={fixedGif ? 'Animated outputs cannot be placed on a static print page.' : 'Send the full-resolution current output directly to Prepare print page'}>Prepare print page</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)}>{downloading ? 'Preparing…' : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button></div>
         </div>
 
         <div className="settingsCard pairGenericSettings">
