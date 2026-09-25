@@ -25,6 +25,19 @@ jobs:
           done
           docker logs aaf-hosted
           exit 1
+      - name: Verify depth edit undo and redo
+        run: |
+          docker exec aaf-hosted python -c "from PIL import Image; Image.new('RGB',(8,8),(128,128,128)).save('/tmp/source.png'); Image.new('L',(8,8),128).save('/tmp/depth.png')"
+          docker cp aaf-hosted:/tmp/source.png /tmp/source.png
+          docker cp aaf-hosted:/tmp/depth.png /tmp/depth.png
+          curl --fail --silent -c /tmp/aaf.cookies -F "file=@/tmp/source.png" http://127.0.0.1:8000/image >/dev/null
+          curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -F "file=@/tmp/depth.png" http://127.0.0.1:8000/depth-map/ai-import >/dev/null
+          edit="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"brush","points":[{"x":0.5,"y":0.5}],"radius":0.1,"delta":0.1}' http://127.0.0.1:8000/depth-map/edit)"
+          echo "$edit" | grep -q '"can_undo":true'
+          undo="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"undo"}' http://127.0.0.1:8000/depth-map/edit)"
+          echo "$undo" | grep -q '"can_redo":true'
+          redo="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"redo"}' http://127.0.0.1:8000/depth-map/edit)"
+          echo "$redo" | grep -q '"can_undo":true'
       - name: Verify frontend is served
         run: |
           curl --fail --silent http://127.0.0.1:8000/ | grep -q '<!doctype html>'
