@@ -7,6 +7,7 @@ export type TechniqueId =
     | 'stereoscope'
     | 'mirror'
     | 'wiggle'
+    | 'pulfrich'
     | 'randomdot'
     | 'pattern'
     | 'lenticular'
@@ -42,6 +43,7 @@ export type TechniqueSettings = {
         mirrorGap: number; reflectedEye: 'left' | 'right'; showGuide: boolean;
     };
     wiggle: { frames: number; duration: number };
+    pulfrich: { frames: number; duration: number; strength: number; darkEye: 'left' | 'right' };
     autostereogram: {
         separation: number; depthStrength: number; dotSize: number; viewing: 'parallel' | 'cross'; color: boolean; guides: boolean; patternRevision: number;
     };
@@ -94,6 +96,7 @@ export const defaultTechniqueSettings: TechniqueSettings = {
         showGuide: true,
     },
     wiggle: { frames: 7, duration: 75 },
+    pulfrich: { frames: 16, duration: 70, strength: 2.0, darkEye: 'right' },
     autostereogram: { separation: 8, depthStrength: 2.3, dotSize: 3, viewing: 'parallel', color: false, guides: true, patternRevision: 0 },
     lenticular: {
         preset: '60lpi',
@@ -118,6 +121,7 @@ export const techniqueInfo: Record<TechniqueId, {label: string; description: str
     stereoscope: { label: 'Traditional Stereoscope Card', description: 'Printable arched stereograph card with mount and text.', family: 'Viewers' },
     mirror: { label: 'Single-Mirror Stereoscope', description: 'Side-by-side stereo arranged around a center mirror gap, with one eye image horizontally reversed for reflection.', family: 'Viewers' },
     wiggle: { label: 'Wiggle-gram', description: 'Animated virtual viewpoints that reveal depth without glasses.', family: 'Animation' },
+    pulfrich: { label: 'Pulfrich Motion 3D', description: 'Depth-driven horizontal motion intended for viewing with a neutral-density filter over one eye.', family: 'Animation / filter' },
     randomdot: { label: 'Random-Dot Stereogram', description: 'Single-image autostereogram generated entirely from depth.', family: 'Autostereograms' },
     pattern: { label: 'Pattern Stereogram', description: 'Autostereogram using a repeating texture or your own pattern.', family: 'Autostereograms' },
     lenticular: { label: 'Lenticular 3D', description: 'Multi-view interlaced print matched to lenticular sheet and printer.', family: 'Print' },
@@ -155,6 +159,7 @@ export function mergeStoredSettings(raw: string | null): TechniqueSettings {
             stereoscope: storedStereoscope,
             mirror: { ...defaultTechniqueSettings.mirror, ...(parsed.mirror || {}) },
             wiggle: storedWiggle,
+            pulfrich: { ...defaultTechniqueSettings.pulfrich, ...(parsed.pulfrich || {}) },
             autostereogram: { ...defaultTechniqueSettings.autostereogram, ...(parsed.autostereogram || {}) },
             lenticular: { ...defaultTechniqueSettings.lenticular, ...(parsed.lenticular || {}) },
         };
