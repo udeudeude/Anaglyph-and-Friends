@@ -415,6 +415,31 @@ class TechniqueGenerator:
             frames = frames + frames[-2:0:-1]
         return frames
 
+    def pulfrich_frames(
+        self,
+        image: np.ndarray,
+        depth: np.ndarray,
+        frame_count: int = 12,
+        strength: float = 2.0,
+        dark_eye: str = "right",
+    ):
+        """Create a smooth oscillating virtual-camera pan for Pulfrich viewing.
+
+        A neutral-density filter over one eye introduces a temporal delay; the
+        sinusoidal lateral motion turns that delay into binocular disparity.
+        Reversing the filtered eye reverses the animation phase so the apparent
+        depth trajectory can be matched to the glasses.
+        """
+        frame_count = max(6, min(30, int(frame_count)))
+        strength = max(0.1, min(6.0, float(strength)))
+        direction = -1.0 if str(dark_eye).lower() == "left" else 1.0
+        phases = np.linspace(0.0, 2.0 * np.pi, frame_count, endpoint=False)
+        offsets = direction * np.sin(phases)
+        return [
+            self.generate_view(image, depth, float(offset), False, strength)
+            for offset in offsets
+        ]
+
     def lenticular(
         self,
         image: np.ndarray,
