@@ -72,6 +72,13 @@ def main():
     text_region = black_card[min(black_card.shape[0] - 1, y0 + ih):, :, :]
     assert np.max(text_region) == 255, 'black-card lettering should contain true white pixels'
 
+    mirror_source = np.zeros((20, 30, 3), dtype=np.uint8)
+    mirror_source[:, :10] = (0, 0, 255)
+    mirror_card = technique_generator.mirror_stereoscope(mirror_source, mirror_source, dpi=72, card_width_in=6, card_height_in=3, image_width_in=2, image_height_in=2, mirror_gap_in=.4, reflected_eye='right', show_guide=True)
+    assert mirror_card.ndim == 3 and mirror_card.shape[2] == 3
+    assert mirror_card.shape[0] == 216 and mirror_card.shape[1] == 432
+    assert np.any(mirror_card != 255), 'mirror stereoscope card should contain stereo image content'
+
     parallel = technique_generator.autostereogram(depth, style='random', separation_percent=10, depth_percent=2, dot_size=2, viewing='parallel')
     cross = technique_generator.autostereogram(depth, style='random', separation_percent=10, depth_percent=2, dot_size=2, viewing='cross')
     assert parallel.shape == image.shape
