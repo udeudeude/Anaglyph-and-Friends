@@ -1,0 +1,33 @@
+name: Hosted Container
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production container
+        run: docker build -t anaglyph-and-friends-hosted .
+      - name: Start production container
+        run: docker run -d --name aaf-hosted -p 8000:8000 -e PORT=8000 anaglyph-and-friends-hosted
+      - name: Wait for health check
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs aaf-hosted
+          exit 1
+      - name: Verify frontend is served
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/ | grep -q '<!doctype html>'
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs aaf-hosted || true
