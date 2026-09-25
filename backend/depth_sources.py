@@ -75,3 +75,59 @@ def align_depth(depth: np.ndarray, target_width: int, target_height: int, mode: 
     bottom = target_height - height - top
     fitted = cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_REPLICATE)
     return np.clip(fitted, 0.0, 1.0).astype(np.float32)
+
+
+def apply_depth_brush(depth: np.ndarray, points, radius_fraction: float = 0.03, delta: float = 0.08) -> np.ndarray:
+    """Apply smooth additive brush strokes to a normalized float32 depth map.
+
+    Points are normalized 0..1 image coordinates. Positive delta lightens the
+    depth value, negative delta darkens it. A feathered mask avoids hard edges.
+    """
+    result = np.clip(depth.astype(np.float32), 0.0, 1.0).copy()
+    height, width = result.shape[:2]
+    radius = max(1, int(round(max(0.001, min(0.25, float(radius_fraction))) * min(width, height))))
+    amount = max(-1.0, min(1.0, float(delta)))
+    if not points or abs(amount) <= 1e-9:
+        return result
+
+    for point in points:
+        try:
+            nx = float(point.get("x", 0.5))
+            ny = float(point.get("y", 0.5))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        cx = int(round(max(0.0, min(1.0, nx)) * (width - 1)))
+        cy = int(round(max(0.0, min(1.0, ny)) * (height - 1)))
+        x0, x1 = max(0, cx - radius), min(width, cx + radius + 1)
+        y0, y1 = max(0, cy - radius), min(height, cy + radius + 1)
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        distance = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+        mask = np.clip(1.0 - distance / max(1, radius), 0.0, 1.0).astype(np.float32)
+        # Smoothstep feather gives a soft but still controllable brush edge.
+        mask = mask * mask * (3.0 - 2.0 * mask)
+        result[y0:y1, x0:x1] += amount * mask
+
+    return np.clip(result, 0.0, 1.0).astype(np.float32)
+
+
+def adjust_depth_map(
+    depth: np.ndarray,
+    black: float = 0.0,
+    white: float = 1.0,
+    gamma: float = 1.0,
+    blur_radius: float = 0.0,
+) -> np.ndarray:
+    """Apply levels/gamma/blur while preserving normalized float32 depth."""
+    result = np.clip(depth.astype(np.float32), 0.0, 1.0)
+    black = max(0.0, min(0.99, float(black)))
+    white = max(black + 1e-4, min(1.0, float(white)))
+    gamma = max(0.1, min(5.0, float(gamma)))
+    result = np.clip((result - black) / (white - black), 0.0, 1.0)
+    result = np.power(result, 1.0 / gamma).astype(np.float32)
+
+    blur_radius = max(0.0, min(100.0, float(blur_radius)))
+    if blur_radius > 0.0:
+        sigma = max(0.1, blur_radius)
+        result = cv2.GaussianBlur(result, (0, 0), sigmaX=sigma, sigmaY=sigma)
+
+    return np.clip(result, 0.0, 1.0).astype(np.float32)
