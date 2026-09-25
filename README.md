@@ -288,8 +288,16 @@ The current code intentionally leaves physical calibration items explicit rather
   - configurable viewpoint count and frame timing
   - looping GIF output
 
-### Color-filter layered artwork
+### Compositing and color-filter layered artwork
 
+- **Layered 3D Composite**
+  - overlays one independent foreground object on the current depth-generated base stereo scene
+  - transparent PNG/WebP foregrounds preserve alpha
+  - move, scale, rotate, and adjust opacity independently
+  - independent stereo depth position can place the layer in front of or behind the base plane
+  - optional grayscale foreground depth adds internal relief instead of treating the object as a flat card
+  - outputs the composited left/right views as the current anaglyph profile, parallel stereo, cross-eyed stereo, or individual eye images
+  - full-resolution PNG export
 - **RGB Reveal / CMY Layers**
   - combine three independent source images as cyan, magenta, and yellow separations
   - red-, green-, and blue-filter simulations
@@ -376,7 +384,7 @@ The pipeline now separates interactive previews from final rendering:
 4. Cache the ordinary left/right stereo pair for reuse by Red/Cyan, Parallel, Cross-Eyed, Cardboard, stereoscope, and eye-view exports.
 5. Create final static downloads from the full-resolution source or, for physical print techniques, from the requested print dimensions and DPI.
 
-Special formats such as wiggle-grams, autostereograms, ChromaDepth, lenticular interlacing, and phantograms reuse the same source/depth foundation but have their own rendering modules.
+Special formats such as wiggle-grams, autostereograms, ChromaDepth, lenticular interlacing, phantograms, and layered 3D compositing reuse the same source/depth foundation but have their own rendering modules. The layered compositor first generates the ordinary base stereo pair, then synthesizes the imported foreground independently for each eye before combining the result.
 
 ## Shared stereo controls
 
