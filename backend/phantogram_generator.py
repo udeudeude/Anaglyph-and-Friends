@@ -29,6 +29,36 @@ def fit_to_print(image, depth, width, height):
     return image, np.clip(depth, 0.0, 1.0).astype(np.float32)
 
 
+def warp_ground_plane_to_print(image, depth, corners, width, height):
+    """Rectify a photographed rectangular ground plane into the print rectangle.
+
+    Corners are normalized source coordinates ordered top-left, top-right,
+    bottom-right, bottom-left. Source image and depth map use the same homography
+    so all later physical phantogram geometry stays registered.
+    """
+    if len(corners) != 4:
+        raise ValueError("Ground plane requires four corners")
+    source_h, source_w = image.shape[:2]
+    source = []
+    for point in corners:
+        if len(point) != 2:
+            raise ValueError("Each ground-plane corner must contain x and y")
+        x = max(0.0, min(1.0, float(point[0]))) * max(1, source_w - 1)
+        y = max(0.0, min(1.0, float(point[1]))) * max(1, source_h - 1)
+        source.append([x, y])
+    source = np.asarray(source, dtype=np.float32)
+    target = np.asarray([
+        [0.0, 0.0],
+        [max(0, width - 1), 0.0],
+        [max(0, width - 1), max(0, height - 1)],
+        [0.0, max(0, height - 1)],
+    ], dtype=np.float32)
+    matrix = cv2.getPerspectiveTransform(source, target)
+    warped_image = cv2.warpPerspective(image, matrix, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    warped_depth = cv2.warpPerspective(depth.astype(np.float32), matrix, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return warped_image, np.clip(warped_depth, 0.0, 1.0).astype(np.float32)
+
+
 def project_relief(image, depth, print_width_mm, print_height_mm, view_distance_mm,
                    eye_height_mm, eye_x_mm, relief_mm, reverse_depth=False, tile_rows=128):
     """Project a textured height field onto the print plane with a tiled z-buffer.
