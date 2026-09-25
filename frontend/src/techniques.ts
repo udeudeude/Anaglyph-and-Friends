@@ -15,8 +15,16 @@ export type TechniqueId =
     | 'columninterlaced'
     | 'checkerboard';
 
+export type FilterCalibration = { leftColor: string; rightColor: string; leftGain: number; rightGain: number };
+
 export type TechniqueSettings = {
-    anaglyph: { glasses: 'red-cyan' | 'red-green' | 'red-blue'; colorMode: string };
+    anaglyph: {
+        glasses: 'red-cyan' | 'red-green' | 'red-blue' | 'custom';
+        colorMode: string;
+        target: 'screen' | 'print';
+        screen: FilterCalibration;
+        print: FilterCalibration;
+    };
     chromadepth: { colorStrength: number; reverse: boolean };
     cardboard: {
         preset: 'cardboard' | 'generic' | 'custom';
@@ -40,7 +48,13 @@ export type TechniqueSettings = {
 };
 
 export const defaultTechniqueSettings: TechniqueSettings = {
-    anaglyph: { glasses: 'red-cyan', colorMode: 'full' },
+    anaglyph: {
+        glasses: 'red-cyan',
+        colorMode: 'full',
+        target: 'screen',
+        screen: { leftColor: '#ff0000', rightColor: '#00ffff', leftGain: 100, rightGain: 100 },
+        print: { leftColor: '#ff0000', rightColor: '#00ffff', leftGain: 100, rightGain: 100 },
+    },
     chromadepth: { colorStrength: 90, reverse: false },
     cardboard: {
         preset: 'cardboard',
@@ -81,7 +95,7 @@ export const defaultTechniqueSettings: TechniqueSettings = {
 };
 
 export const techniqueInfo: Record<TechniqueId, {label: string; description: string; family: string}> = {
-    anaglyph: { label: 'Anaglyph', description: 'Color-filter stereo for red/cyan, red/green, or red/blue glasses.', family: 'Glasses' },
+    anaglyph: { label: 'Anaglyph', description: 'Color-filter stereo with standard or fully custom filter profiles for screen and print.', family: 'Glasses' },
     parallel: { label: 'Parallel', description: 'Left eye on left for relaxed / wall-eyed viewing without glasses.', family: 'Unaided stereo' },
     cross: { label: 'Cross-Eyed', description: 'Stereo pair swapped for cross-eyed viewing without glasses.', family: 'Unaided stereo' },
     chromadepth: { label: 'ChromaDepth', description: 'Encodes depth as spectral color for ChromaDepth glasses.', family: 'Glasses' },
@@ -109,7 +123,12 @@ export function mergeStoredSettings(raw: string | null): TechniqueSettings {
         const parsed = JSON.parse(raw);
         const storedWiggle = { ...defaultTechniqueSettings.wiggle, ...(parsed.wiggle || {}) };
         if (parsed.wiggle?.duration === 130) storedWiggle.duration = defaultTechniqueSettings.wiggle.duration;
-        const storedAnaglyph = { ...defaultTechniqueSettings.anaglyph, ...(parsed.anaglyph || {}) };
+        const storedAnaglyph = {
+            ...defaultTechniqueSettings.anaglyph,
+            ...(parsed.anaglyph || {}),
+            screen: { ...defaultTechniqueSettings.anaglyph.screen, ...(parsed.anaglyph?.screen || {}) },
+            print: { ...defaultTechniqueSettings.anaglyph.print, ...(parsed.anaglyph?.print || {}) },
+        };
         if (typeof storedAnaglyph.colorMode === 'number') storedAnaglyph.colorMode = String(storedAnaglyph.colorMode);
         const storedStereoscope = { ...defaultTechniqueSettings.stereoscope, ...(parsed.stereoscope || {}) };
         if (storedStereoscope.cardTone === 'cream' || storedStereoscope.cardTone === 'tan') storedStereoscope.cardTone = 'white';
