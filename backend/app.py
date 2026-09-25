@@ -680,6 +680,46 @@ def special_wiggle():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/special/pulfrich", methods=["GET"])
+def special_pulfrich():
+    try:
+        image, depth = source_and_depth("preview", 1100)
+        frame_count = max(6, min(30, int(request.args.get("frames", 16))))
+        duration = max(35, min(250, int(request.args.get("duration", 70))))
+        strength = max(0.2, min(6.0, float(request.args.get("strength", 2.0))))
+        dark_eye = request.args.get("dark_eye", "right").lower()
+        if dark_eye not in ("left", "right"):
+            dark_eye = "right"
+        frames = technique_generator.pulfrich_frames(
+            image,
+            depth,
+            frame_count=frame_count,
+            strength=strength,
+            dark_eye=dark_eye,
+        )
+        pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)) for frame in frames]
+        buffer = io.BytesIO()
+        pil_frames[0].save(
+            buffer,
+            format="GIF",
+            save_all=True,
+            append_images=pil_frames[1:],
+            duration=duration,
+            loop=0,
+            disposal=2,
+            optimize=False,
+        )
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            mimetype="image/gif",
+            as_attachment=request.args.get("download", "false").lower() == "true",
+            download_name="pulfrich-motion-3d.gif",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/special/lenticular", methods=["GET"])
 def special_lenticular():
     try:
