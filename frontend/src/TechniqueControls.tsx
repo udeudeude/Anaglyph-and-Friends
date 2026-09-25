@@ -214,6 +214,23 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         </>;
     }
 
+    if (technique === 'mirror') {
+        const s = settings.mirror;
+        body = <>
+            <div className="techniqueGrid four">
+                <label><span>Print DPI</span><input type="number" min="72" max="1200" value={s.dpi} onChange={(e) => update('mirror', { dpi: numberValue(e.target.value, 300) })} /></label>
+                <label><span>Card width</span><input type="number" step="0.05" min="2" max="20" value={s.cardWidth} onChange={(e) => update('mirror', { cardWidth: numberValue(e.target.value, 8) })} /><small>in</small></label>
+                <label><span>Card height</span><input type="number" step="0.05" min="2" max="20" value={s.cardHeight} onChange={(e) => update('mirror', { cardHeight: numberValue(e.target.value, 4) })} /><small>in</small></label>
+                <label><span>Mirror gap</span><input type="number" step="0.01" min="0" max="4" value={s.mirrorGap} onChange={(e) => update('mirror', { mirrorGap: numberValue(e.target.value, .5) })} /><small>in</small></label>
+                <label><span>Image width</span><input type="number" step="0.05" min="0.5" max="10" value={s.imageWidth} onChange={(e) => update('mirror', { imageWidth: numberValue(e.target.value, 3) })} /><small>in</small></label>
+                <label><span>Image height</span><input type="number" step="0.05" min="0.5" max="10" value={s.imageHeight} onChange={(e) => update('mirror', { imageHeight: numberValue(e.target.value, 3) })} /><small>in</small></label>
+                <label><span>Reflected eye</span><select value={s.reflectedEye} onChange={(e) => update('mirror', { reflectedEye: e.target.value as typeof s.reflectedEye })}><option value="right">Right eye image</option><option value="left">Left eye image</option></select></label>
+                <label className="checkField"><span>Mirror placement guide</span><div><input type="checkbox" checked={s.showGuide} onChange={(e) => update('mirror', { showGuide: e.target.checked })} /> Show center/gap guide</div></label>
+            </div>
+            <p className="techniqueHint">The selected reflected eye is horizontally reversed in the output so a vertical mirror restores it. Geometry is intentionally generic rather than claiming to match the DK book or another physical viewer until measured.</p>
+        </>;
+    }
+
     if (technique === 'wiggle') {
         const s = settings.wiggle;
         const fps = (1000 / Math.max(1, s.duration)).toFixed(1);
