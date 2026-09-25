@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { StereoPairDraft } from './studioAssets'
 import './styles/StereoPairUpload.css'
+import UiIcon from './UiIcon'
 
 type Props = {
     pair: StereoPairDraft
@@ -69,8 +70,8 @@ function StereoPairUpload({ pair, onChange }: Props) {
         <input ref={depthInput} className="hiddenInput" type="file" accept=".npy,image/png,image/jpeg,image/jpg,image/webp,image/tiff" onChange={chooseDepth} />
 
         <div className="pairSourceActions">
-            <button onClick={() => leftInput.current?.click()}>{pair.left ? 'Replace left' : 'Choose left'}</button>
-            <button onClick={() => rightInput.current?.click()}>{pair.right ? 'Replace right' : 'Choose right'}</button>
+            <button onClick={() => leftInput.current?.click()}><UiIcon name="upload" /> {pair.left ? 'Replace left' : 'Choose left'}</button>
+            <button onClick={() => rightInput.current?.click()}><UiIcon name="upload" /> {pair.right ? 'Replace right' : 'Choose right'}</button>
             <button onClick={swap} disabled={!pair.left && !pair.right}>Swap L / R</button>
         </div>
 
@@ -81,7 +82,7 @@ function StereoPairUpload({ pair, onChange }: Props) {
 
         <div className={pair.depth ? 'pairDepthSource ready' : 'pairDepthSource'}>
             <div><strong>Optional depth map</strong><span>{pair.depth ? pair.depth.name : 'Add a map aligned to the LEFT eye to unlock depth-dependent techniques.'}</span></div>
-            <div><button onClick={() => depthInput.current?.click()}>{pair.depth ? 'Replace depth' : 'Choose depth'}</button>{pair.depth && <button onClick={() => onChange({ ...pair, depth: null })}>Remove</button>}</div>
+            <div><button onClick={() => depthInput.current?.click()}><UiIcon name="upload" /> {pair.depth ? 'Replace depth' : 'Choose depth'}</button>{pair.depth && <button onClick={() => onChange({ ...pair, depth: null })}><UiIcon name="close" /> Remove</button>}</div>
         </div>
 
         <div className="localNote"><strong>Original pair retained</strong><span>The imported files stay at their original resolution. Ordinary stereo formats use the two images directly. An optional PNG/JPEG/TIFF/WebP or float32 .npy depth map can drive ChromaDepth, wiggle and autostereogram techniques from the left-eye image.</span></div>
