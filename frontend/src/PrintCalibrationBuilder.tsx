@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './styles/PrintCalibrationBuilder.css'
+import UiIcon from './UiIcon'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type PagePreset = 'letter' | 'a4' | 'custom'
@@ -486,7 +487,7 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
     return <div className="printCalibrationWorkspace">
         <header className="printCalibrationHeader">
             <div><div className="panelLabel">PRINT TOOLS</div><h2>Print calibration sheet</h2><p>One general-purpose sheet for checking physical scale, registration, tonal response, color/filter behavior, and fine detail before trusting a print workflow.</p></div>
-            <button className="primaryCalibrationDownload" onClick={() => void download()} disabled={busy}>{busy ? 'Preparing…' : 'Download calibration sheet'}</button>
+            <button className="primaryCalibrationDownload" onClick={() => void download()} disabled={busy}>{busy ? 'Preparing…' : <><UiIcon name="download" /> Download calibration sheet</>}</button>
         </header>
 
         <div className="printCalibrationQuick">
@@ -543,11 +544,11 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
                             <label><span>Measured Y scale</span><input type="number" min="90" max="110" step=".01" value={profile.scaleY} onChange={(event) => setProfile(current => ({ ...current, scaleY: Number(event.target.value) }))} /><small>%</small></label>
                         </div>
                         <label className="profileNotes"><span>Notes</span><textarea rows={3} value={profile.notes} placeholder="Leave measurements blank/default until you have a real print." onChange={(event) => setProfile(current => ({ ...current, notes: event.target.value }))} /></label>
-                        <div className="printProfileActions"><button type="button" onClick={saveProfile} disabled={!profile.name.trim()}>Save / update profile</button><button type="button" onClick={deleteProfile} disabled={!profile.id}>Delete profile</button><button type="button" onClick={downloadSetupJson}>Download setup JSON</button></div>
+                        <div className="printProfileActions"><button type="button" onClick={saveProfile} disabled={!profile.name.trim()}>Save / update profile</button><button type="button" onClick={deleteProfile} disabled={!profile.id}>Delete profile</button><button type="button" onClick={downloadSetupJson}><UiIcon name="download" /> Download setup JSON</button></div>
                     </div>
                 </details>
 
-                <button className="resetPrintDefaults" type="button" onClick={() => setSettings(DEFAULTS)}>Reset standard defaults</button>
+                <button className="resetPrintDefaults" type="button" onClick={() => setSettings(DEFAULTS)}><UiIcon name="reset" /> Reset standard defaults</button>
             </div>
         </details>
     </div>
