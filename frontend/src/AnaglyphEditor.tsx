@@ -18,6 +18,7 @@ type Props = {
     setIsChangeAllowed: (value: boolean) => void;
     setProcessingStage: (stage: ProcessingStage) => void;
     onOpenPhantogram: () => void;
+    onOpenColorReveal: () => void;
 };
 
 const coreTechniques = new Set<TechniqueId>(['anaglyph', 'parallel', 'cross']);
@@ -41,7 +42,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram }: Props) {
+function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -112,6 +113,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     };
 
     const directUrl = (technique: TechniqueId, scope: 'preview' | 'full') => {
+        const calibration = appliedSettings.anaglyph[appliedSettings.anaglyph.target];
         const params = new URLSearchParams({
             scope,
             format: downloadFormat,
@@ -122,6 +124,11 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             optimised_RR_anaglyph: String(optimiseRRAnaglyph),
             anaglyph_type: appliedSettings.anaglyph.glasses,
             anaglyph_color: appliedSettings.anaglyph.colorMode,
+            anaglyph_target: appliedSettings.anaglyph.target,
+            anaglyph_left_color: calibration.leftColor,
+            anaglyph_right_color: calibration.rightColor,
+            anaglyph_left_gain: String(calibration.leftGain),
+            anaglyph_right_gain: String(calibration.rightGain),
         });
         return `${apiUrl}/output/${technique}?${params.toString()}`;
     };
@@ -185,6 +192,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const selectMoreTechnique = (value: string) => {
         if (value === '__phantogram__') {
             onOpenPhantogram();
+            return;
+        }
+        if (value === '__color_reveal__') {
+            onOpenColorReveal();
             return;
         }
         if (value === '__compatibility__') {
@@ -318,7 +329,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const compatibilitySelected = compatibilityTechniques.has(activeTechnique);
     const specialSelected = !coreTechniques.has(activeTechnique) && !compatibilitySelected;
     const showTechniqueSettings = activeTechnique === 'anaglyph' || specialSelected;
-    const showRetinalRivalry = activeTechnique === 'anaglyph' && appliedSettings.anaglyph.glasses === 'red-cyan' && appliedSettings.anaglyph.colorMode === 'full';
+    const showRetinalRivalry = activeTechnique === 'anaglyph' && appliedSettings.anaglyph.glasses === 'red-cyan' && appliedSettings.anaglyph.colorMode === 'full' && appliedSettings.anaglyph.target === 'screen';
 
     const genericSettings = (fullscreenMode = false) => <div className={`settingsCard ${usesStereo ? '' : 'nonStereo'} ${fullscreenMode ? 'fullscreenSettingsCard' : ''}`}>
         {usesStereo && <div className="settingGroup">
@@ -355,7 +366,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option></optgroup>
                     <optgroup label="Animation"><option value="wiggle">Wiggle-gram</option></optgroup>
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
-                    <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option></optgroup>
+                    <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
                     <option className="techniqueMenuDivider" value="__divider__" disabled>────────────</option>
                     <option value="__compatibility__">Even more techniques…</option>
                 </select>
