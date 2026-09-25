@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent } from 'react';
 import type { TechniqueId, TechniqueSettings } from './techniques';
+import UiIcon from './UiIcon';
 
 
 type Props = {
@@ -374,7 +375,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                     <label><span>Test step</span><input type="number" min="0.02" max="1" step="0.01" value={s.calibrationStep} onChange={(e) => update('lenticular', { calibrationStep: numberValue(e.target.value, .1) })} /><small>LPI</small></label>
                     <label><span>Strip width</span><input type="number" min="2" max="20" step="0.5" value={s.calibrationWidth} onChange={(e) => update('lenticular', { calibrationWidth: numberValue(e.target.value, 8) })} /><small>in</small></label>
                 </div>
-                <a className="calibrationDownload" href={calibrationUrl()}>Download black/white calibration bars</a>
+                <a className="calibrationDownload" href={calibrationUrl()}><UiIcon name="download" /> Download black/white calibration bars</a>
                 <strong className="printWarning">PRINT AT 100% / ACTUAL SIZE. Disable all fit-to-page scaling.</strong>
             </div>
         </>;
