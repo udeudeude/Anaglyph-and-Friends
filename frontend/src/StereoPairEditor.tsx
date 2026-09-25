@@ -14,11 +14,11 @@ type Props = {
 }
 
 const supported = new Set<PairTechnique>([
-    'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'lenticular',
+    'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'mirror', 'lenticular',
     'topbottom', 'halfsbs', 'rowinterlaced', 'columninterlaced', 'checkerboard',
 ])
 
-const settingsTechniques = new Set<PairTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'lenticular'])
+const settingsTechniques = new Set<PairTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular'])
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings))
 
 function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Props) {
@@ -40,7 +40,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
     const pairReady = isCompletePair(pair)
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings)
     const info = techniqueInfo[activeTechnique]
-    const fixedPng = activeTechnique === 'stereoscope' || activeTechnique === 'lenticular'
+    const fixedPng = activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular'
 
     useEffect(() => {
         localStorage.setItem('aaf-technique-settings', JSON.stringify(draftSettings))
@@ -139,6 +139,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         if (activeTechnique === 'lenticular') return 'Imported pairs use a two-view lenticular interlace. No intermediate viewpoints are invented.'
         if (activeTechnique === 'cardboard') return 'The two imported views are positioned directly for the selected phone-viewer geometry.'
         if (activeTechnique === 'stereoscope') return 'The imported left/right photographs are placed directly on the printable stereograph card.'
+        if (activeTechnique === 'mirror') return 'One imported eye is horizontally reversed and placed across a configurable center mirror gap for single-mirror viewing.'
         return 'The supplied left and right images are used directly. No depth map or AI-generated second eye is involved.'
     }, [activeTechnique])
 
@@ -156,7 +157,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
             </div>
             <select className={specialSelected ? 'moreTechniques active' : 'moreTechniques'} value={specialSelected ? activeTechnique : ''} onChange={(event) => selectMore(event.target.value)}>
                 <option value="" disabled>More techniques…</option>
-                <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option></optgroup>
+                <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
                 <optgroup label="Print"><option value="lenticular">Lenticular 3D · two-view</option></optgroup>
                 <optgroup label="Display & compatibility"><option value="halfsbs">Half-Width Side-by-Side</option><option value="topbottom">Top / Bottom Stereo</option><option value="rowinterlaced">Row-Interlaced</option><option value="columninterlaced">Column-Interlaced</option><option value="checkerboard">Checkerboard Stereo</option></optgroup>
                 <optgroup label="Requires source + depth map"><option disabled>ChromaDepth</option><option disabled>Wiggle-gram multi-view</option><option disabled>Random-Dot Stereogram</option><option disabled>Pattern Stereogram</option><option disabled>Phantogram</option></optgroup>
