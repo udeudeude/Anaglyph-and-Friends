@@ -41,6 +41,17 @@ function PhantogramBuilder({ isDepthMapReady, sourceFile, setProcessingStage }: 
 
     useEffect(() => { localStorage.setItem('aaf-phantogram-settings', JSON.stringify(settings)) }, [settings])
     useEffect(() => {
+        if (!sourceFile) {
+            setSourceUrl(old => { if (old) URL.revokeObjectURL(old); return null })
+            return
+        }
+        const next = URL.createObjectURL(sourceFile)
+        setSourceUrl(old => { if (old) URL.revokeObjectURL(old); return next })
+        setPlaneCorners(defaultPlaneCorners)
+        setActiveCorner(0)
+        return () => URL.revokeObjectURL(next)
+    }, [sourceFile])
+    useEffect(() => {
         if (!ready) { setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null }); return }
         const controller = new AbortController()
         const timer = window.setTimeout(async () => {
@@ -67,6 +78,15 @@ function PhantogramBuilder({ isDepthMapReady, sourceFile, setProcessingStage }: 
     }, [apiUrl, ready, sourceMode, model, modelSettings, params, setProcessingStage])
 
     const patch = (values: Partial<Settings>) => setSettings(current => ({ ...current, ...values }))
+    const setGroundPlaneCorner = (event: ReactMouseEvent<HTMLDivElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        const point: PlanePoint = [
+            Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width))),
+            Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height))),
+        ]
+        setPlaneCorners(current => current.map((item, index) => index === activeCorner ? point : item))
+        setActiveCorner(current => (current + 1) % 4)
+    }
     const setPreset = (value: string) => { if (value === '8x6') patch({ widthIn: 8, heightIn: 6 }); if (value === '10x7.5') patch({ widthIn: 10, heightIn: 7.5 }); if (value === '7x5') patch({ widthIn: 7, heightIn: 5 }) }
     const loadModel = async (file: File) => {
         setLoading(true); setError(''); setProcessingStage('uploading')
