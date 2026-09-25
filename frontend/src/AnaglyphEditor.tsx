@@ -26,11 +26,11 @@ const compatibilityTechniques = new Set<TechniqueId>(['topbottom', 'halfsbs', 'r
 const directOutputTechniques = new Set<TechniqueId>([...coreTechniques, ...compatibilityTechniques]);
 const allTechniques = new Set<TechniqueId>([
     ...directOutputTechniques,
-    'chromadepth', 'cardboard', 'stereoscope', 'wiggle', 'randomdot', 'pattern', 'lenticular',
+    'chromadepth', 'cardboard', 'stereoscope', 'mirror', 'wiggle', 'randomdot', 'pattern', 'lenticular',
 ]);
 const eyeOrderTechniques = new Set<TechniqueId>([
     ...directOutputTechniques,
-    'cardboard', 'stereoscope', 'lenticular',
+    'cardboard', 'stereoscope', 'mirror', 'lenticular',
 ]);
 
 const readNumber = (key: string, fallback: number) => {
@@ -96,6 +96,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         if (technique === 'stereoscope') {
             const s = appliedSettings.stereoscope;
             return `${apiUrl}/special/stereoscope?${new URLSearchParams({...base, dpi: String(s.dpi), card_width: String(s.cardWidth), card_height: String(s.cardHeight), image_width: String(s.imageWidth), image_height: String(s.imageHeight), gap: String(s.gap), arch: String(s.arch), title: s.title, caption: s.caption, publisher: s.publisher, card_tone: s.cardTone}).toString()}`;
+        }
+        if (technique === 'mirror') {
+            const s = appliedSettings.mirror;
+            return `${apiUrl}/special/mirror-stereoscope?${new URLSearchParams({...base, dpi: String(s.dpi), card_width: String(s.cardWidth), card_height: String(s.cardHeight), image_width: String(s.imageWidth), image_height: String(s.imageHeight), mirror_gap: String(s.mirrorGap), reflected_eye: s.reflectedEye, show_guide: String(s.showGuide)}).toString()}`;
         }
         if (technique === 'wiggle') {
             const s = appliedSettings.wiggle;
@@ -218,7 +222,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     };
 
     const currentFilename = () => {
-        const ext = activeTechnique === 'wiggle' ? 'gif' : (activeTechnique === 'stereoscope' || activeTechnique === 'lenticular' ? 'png' : downloadFormat === 'png' ? 'png' : 'jpg');
+        const ext = activeTechnique === 'wiggle' ? 'gif' : (activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'png' : downloadFormat === 'png' ? 'png' : 'jpg');
         const names: Record<TechniqueId, string> = {
             anaglyph: `${appliedSettings.anaglyph.glasses}-anaglyph`,
             parallel: 'parallel-stereo',
@@ -226,6 +230,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             chromadepth: 'chromadepth',
             cardboard: 'cardboard-stereo',
             stereoscope: 'stereoscope-card',
+            mirror: 'single-mirror-stereoscope',
             wiggle: 'wiggle-gram',
             randomdot: 'random-dot-stereogram',
             pattern: 'pattern-stereogram',
@@ -324,7 +329,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const usesStereo = stereoBasedTechniques.has(activeTechnique);
     const usesEyeOrder = eyeOrderTechniques.has(activeTechnique);
-    const fixedFormat = activeTechnique === 'wiggle' ? 'GIF' : activeTechnique === 'stereoscope' || activeTechnique === 'lenticular' ? 'PNG' : null;
+    const fixedFormat = activeTechnique === 'wiggle' ? 'GIF' : activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'PNG' : null;
     const info = techniqueInfo[activeTechnique];
     const compatibilitySelected = compatibilityTechniques.has(activeTechnique);
     const specialSelected = !coreTechniques.has(activeTechnique) && !compatibilitySelected;
@@ -363,7 +368,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <select className={specialSelected ? 'moreTechniques active' : 'moreTechniques'} value={specialSelected ? activeTechnique : ''} onChange={(e) => selectMoreTechnique(e.target.value)}>
                     <option value="" disabled>More techniques…</option>
                     <optgroup label="Glasses"><option value="chromadepth">ChromaDepth</option></optgroup>
-                    <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option></optgroup>
+                    <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
                     <optgroup label="Animation"><option value="wiggle">Wiggle-gram</option></optgroup>
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
                     <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
