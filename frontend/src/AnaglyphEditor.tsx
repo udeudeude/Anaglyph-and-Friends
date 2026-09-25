@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import "./styles/AnaglyphEditor.css";
 import TechniqueControls from './TechniqueControls';
+import UiIcon from './UiIcon';
 import {
     mergeStoredSettings,
     stereoBasedTechniques,
@@ -311,10 +312,17 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat) return;
+            if (event.repeat) return;
             const target = event.target as HTMLElement | null;
             if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
             const key = event.key.toLowerCase();
+            const primary = event.metaKey || event.ctrlKey;
+            if (primary && !event.shiftKey && !event.altKey && key === 's' && previewUrl) {
+                event.preventDefault();
+                void downloadCurrent();
+                return;
+            }
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
             if (key === 'r') { event.preventDefault(); selectCoreTechnique('anaglyph'); }
             else if (key === 'v') { event.preventDefault(); selectCoreTechnique('parallel'); }
             else if (key === 'x') { event.preventDefault(); selectCoreTechnique('cross'); }
@@ -412,7 +420,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <div className="fullscreenDock" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <div className="fullscreenDockHeader">
                         <div><strong>{info.label}</strong><span>Move the pointer above this panel to hide it.</span></div>
-                        <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <>Download <kbd>D</kbd></>}</button>
+                        <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>D / ⌘S</kbd></>}</button>
                     </div>
                     {genericSettings(true)}
                     {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
@@ -423,7 +431,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <div><strong>{info.label}</strong><span>{info.description}</span></div>
                 <div className="previewActions">
                     <div className="zoomControls"><button onClick={() => zoomBy(-0.25)} disabled={zoom <= 1}>−</button><button onClick={resetZoom}>{Math.round(zoom * 100)}%</button><button onClick={() => zoomBy(0.25)} disabled={zoom >= 4}>＋</button></div>
-                    <button onClick={fullscreen} disabled={!previewUrl}>Fullscreen <kbd>F</kbd></button>
+                    <button onClick={fullscreen} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen <kbd>F</kbd></button>
                     <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <>Download <kbd>D</kbd></>}</button>
                 </div>
             </div>
@@ -437,7 +445,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <div className="downloadControls">
                     {fixedFormat ? <div className="fixedFormat"><span>Format</span><strong>{fixedFormat}</strong></div> : <label>Format<select value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png')}><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label>}
                     {!fixedFormat && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" step="1" value={jpegQuality} onChange={(e) => setJpegQuality(parseInt(e.target.value))} /><strong>{jpegQuality}</strong></label>}
-                    {usesStereo && <div className="eyeDownloads"><button onClick={() => void downloadEye('left')} disabled={!hasRendered || fullPreparing}>Left eye</button><button onClick={() => void downloadEye('right')} disabled={!hasRendered || fullPreparing}>Right eye</button></div>}
+                    {usesStereo && <div className="eyeDownloads"><button onClick={() => void downloadEye('left')} disabled={!hasRendered || fullPreparing}><UiIcon name="download" /> Left eye</button><button onClick={() => void downloadEye('right')} disabled={!hasRendered || fullPreparing}><UiIcon name="download" /> Right eye</button></div>}
                 </div>
             </div>
         </div>
