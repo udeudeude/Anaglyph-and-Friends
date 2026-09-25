@@ -342,7 +342,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
             <section className="layeredControls">
                 <div className="layeredFiles">
                     <div><strong>Foreground object</strong><span>{foreground?.name || 'Transparent PNG/WebP recommended'}</span><button onClick={() => foregroundInput.current?.click()}><UiIcon name="upload" /> {foreground ? 'Replace foreground' : 'Choose foreground'}</button>{foreground && <button onClick={() => setForeground(null)}><UiIcon name="close" /> Remove</button>}</div>
-                    <div><strong>Optional object depth</strong><span>{layerDepth?.name || 'Grayscale image aligned to foreground'}</span><button onClick={() => depthInput.current?.click()}><UiIcon name="upload" /> {layerDepth ? 'Replace object depth' : 'Choose object depth'}</button>{layerDepth && <button onClick={() => setLayerDepth(null)}>Remove</button>}</div>
+                    <div><strong>Optional object depth</strong><span>{layerDepth?.name || 'Grayscale image aligned to foreground'}</span><button onClick={() => depthInput.current?.click()}><UiIcon name="upload" /> {layerDepth ? 'Replace object depth' : 'Choose object depth'}</button>{layerDepth && <button onClick={() => setLayerDepth(null)}><UiIcon name="close" /> Remove</button>}</div>
                     <input ref={foregroundInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseForeground(event.target.files?.[0]); event.currentTarget.value = '' }} />
                     <input ref={depthInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseDepth(event.target.files?.[0]); event.currentTarget.value = '' }} />
                 </div>
