@@ -64,18 +64,24 @@ Still worth developing after physical testing:
   - label examples clearly when special glasses, free-viewing, a stereoscope, animation, or print calibration are required to perceive the 3D effect
   - where a GitHub README cannot demonstrate the effect directly, show a representative still and explain what the downloaded/animated/printed result is intended to look like
 
-## View-Master reel builder — in progress
+## View-Master reel builder — physical validation remaining
 
-The first prototype is now implemented as a separate seven-scene workspace. It accepts seven source images, generates a stereo pair from each using the existing AI depth/stereo pipeline, and lays the fourteen eye views onto an actual-size SVG transparency master plus a matching cardstock cutting template.
+The seven-scene workspace now accepts a mixture of ordinary source images and imported left/right stereo pairs, supports handoff back to 3D Studio, and exports an actual-size PDF print master plus secondary SVG output. Pair-level orientation handling and pure-white cardstock output are regression-protected.
 
 Still to validate/refine with a physical reel and viewer:
 
 - exact center spindle-hole geometry
 - exact seven transport/index slot dimensions and phase
-- final default image rotation/orientation
 - printed registration tolerance and useful overscan around each frame
-- optional PDF output after the physical SVG geometry is proven
+- final confirmation of the default orientation against a real reel/viewer
 - calibration/resolution test reel for comparing printers and transparency films
+
+## Current physical-calibration follow-up
+
+- **Named glasses/filter profiles are implemented** and store both screen and print calibration values locally in the browser. The remaining work is measuring actual glasses, displays, printers, inks, papers, and lighting.
+- **Single-mirror stereoscope output is implemented** as a generic configurable layout. A named DK/book preset waits on real measurements.
+- **Dual-projector polarized presentation windows are implemented** so each eye can be moved to a separate display and independently fullscreened. Real projector/filter/silver-screen calibration remains hardware work.
+- **Lenticular saved hardware profiles** remain future work after real printer + sheet measurements establish trustworthy values.
 
 ## Potential future viewing / export techniques
 
@@ -85,6 +91,7 @@ Still to validate/refine with a physical reel and viewer:
 - **Additional historical stereograph templates**, typography, backs, publisher marks, numbering, and batch card generation.
 - **Additional phone/viewer profiles** with saved device dimensions and optional lens-distortion correction.
 - **Saved lenticular printer + paper + sheet profiles** once real calibration data is available.
+- **Optional depth map alongside an imported stereo pair**, unlocking depth-dependent techniques without pretending the pair itself supplies a reliable depth field.
 - **More specialized legacy/display encodings** when a concrete device or workflow calls for them.
 
 ## Implemented technique families
@@ -95,18 +102,24 @@ The current application includes:
   - red/cyan
   - red/green
   - red/blue
+  - arbitrary two-color calibration
+  - independent screen and print profiles
+  - saved named glasses/filter profiles
   - adjustable color retention from full color through grayscale
 - parallel stereo
 - cross-eyed stereo
 - ChromaDepth
 - Cardboard / phone viewer presentation
 - traditional stereoscope cards with arched images and text
+- generic single-mirror stereoscope layouts
 - wiggle-grams
 - random-dot autostereograms
 - pattern-based autostereograms
 - lenticular 3D interlacing plus printable LPI calibration bars
 - experimental AI relief phantogram workspace with physically calibrated PNG output
-- experimental seven-scene View-Master reel builder with transparency/card templates
+- experimental seven-scene View-Master reel builder with PDF/SVG print masters and imported-pair scenes
+- RGB Reveal / CMY Layers workspace for three-layer color-filter artwork
+- dual-projector polarized 3D workspace with independent alignment, crosstalk tests, projector windows, and exports
 
 ### Lower-priority display / compatibility formats
 
