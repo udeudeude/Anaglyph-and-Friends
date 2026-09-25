@@ -7,6 +7,7 @@ export type PairTechnique =
     | 'cross'
     | 'cardboard'
     | 'stereoscope'
+    | 'mirror'
     | 'lenticular'
     | 'topbottom'
     | 'halfsbs'
@@ -246,6 +247,62 @@ const renderStereoscope = (left: ImageBitmap, right: ImageBitmap, settings: Tech
     return canvas
 }
 
+const renderMirrorStereoscope = (left: ImageBitmap, right: ImageBitmap, settings: TechniqueSettings, scope: 'preview' | 'full') => {
+    const s = settings.mirror
+    const fullWidth = Math.max(1, Math.round(s.cardWidth * s.dpi))
+    const fullHeight = Math.max(1, Math.round(s.cardHeight * s.dpi))
+    const scale = previewScale(fullWidth, fullHeight, scope)
+    const dpi = s.dpi * scale
+    const width = Math.max(1, Math.round(fullWidth * scale))
+    const height = Math.max(1, Math.round(fullHeight * scale))
+    const canvas = makeCanvas(width, height)
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, width, height)
+
+    let imageWidth = s.imageWidth * dpi
+    let imageHeight = s.imageHeight * dpi
+    let gap = Math.max(0, s.mirrorGap * dpi)
+    const total = imageWidth * 2 + gap
+    if (total > width) {
+        const shrink = width / total
+        imageWidth *= shrink
+        imageHeight *= shrink
+        gap *= shrink
+    }
+    const startX = (width - (imageWidth * 2 + gap)) / 2
+    const imageY = (height - imageHeight) / 2
+    const reflected = s.reflectedEye
+
+    const drawPanel = (image: ImageBitmap, x: number, mirror: boolean) => {
+        context.save()
+        if (mirror) {
+            context.translate(x + imageWidth, imageY)
+            context.scale(-1, 1)
+            drawCover(context, image, image.width, image.height, 0, 0, imageWidth, imageHeight)
+        } else drawCover(context, image, image.width, image.height, x, imageY, imageWidth, imageHeight)
+        context.restore()
+    }
+
+    drawPanel(left, startX, reflected === 'left')
+    drawPanel(right, startX + imageWidth + gap, reflected === 'right')
+
+    if (s.showGuide) {
+        const center = startX + imageWidth + gap / 2
+        context.strokeStyle = '#888'
+        context.lineWidth = Math.max(1, dpi / 150)
+        context.beginPath()
+        context.moveTo(center, Math.max(0, imageY - dpi * .18))
+        context.lineTo(center, Math.min(height, imageY + imageHeight + dpi * .18))
+        context.stroke()
+        if (gap > 0) {
+            context.strokeStyle = '#d2d2d2'
+            context.strokeRect(startX + imageWidth, imageY, gap, imageHeight)
+        }
+    }
+    return canvas
+}
+
 const renderLenticular = (left: ImageBitmap, right: ImageBitmap, settings: TechniqueSettings, scope: 'preview' | 'full') => {
     const s = settings.lenticular
     const fullWidth = Math.max(1, Math.round(s.widthIn * s.dpi))
@@ -272,6 +329,7 @@ export async function renderStereoPairOutput(pair: StereoPairFiles, options: Ren
         let canvas: HTMLCanvasElement
         if (options.technique === 'cardboard') canvas = renderCardboard(left, right, options.settings, options.scope)
         else if (options.technique === 'stereoscope') canvas = renderStereoscope(left, right, options.settings, options.scope)
+        else if (options.technique === 'mirror') canvas = renderMirrorStereoscope(left, right, options.settings, options.scope)
         else if (options.technique === 'lenticular') canvas = renderLenticular(left, right, options.settings, options.scope)
         else {
             const base = pairBaseSize(left, right, options.scope)
