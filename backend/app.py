@@ -27,6 +27,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-anaglyph-and-friends")
 
 KERNEL_WIDTH = 15
 PREVIEW_MAX_DIMENSION = 1600
+DEPTH_EDIT_HISTORY_LIMIT = 40
 SESSION_DATA_FOLDER = "resources/session_data"
 os.makedirs(SESSION_DATA_FOLDER, exist_ok=True)
 
@@ -214,10 +215,11 @@ def colour_depth_map_lightweight(depth_map):
 def save_active_depth(depth_map, editing=False):
     depth_map = np.clip(depth_map, 0.0, 1.0).astype(np.float32)
     if not editing:
-        try:
-            os.remove(session_path("depth_map_edit_base.npy"))
-        except FileNotFoundError:
-            pass
+        for suffix in ("depth_map_edit_base.npy", "depth_map_edit_history.json"):
+            try:
+                os.remove(session_path(suffix))
+            except FileNotFoundError:
+                pass
     np.save(session_path("depth_map.npy"), depth_map, allow_pickle=False)
     coloured = colour_depth_map_lightweight(depth_map)
     coloured_preview, _ = resize_image_and_depth(coloured, depth_map, PREVIEW_MAX_DIMENSION)
@@ -344,6 +346,65 @@ def set_depth_source():
         return jsonify({"error": str(e)}), 400
 
 
+def load_depth_edit_history():
+    path = session_path("depth_map_edit_history.json")
+    if not os.path.exists(path):
+        return {"ops": [], "cursor": 0}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            history = json.load(handle)
+        ops = history.get("ops", [])
+        cursor = max(0, min(len(ops), int(history.get("cursor", len(ops)))))
+        return {"ops": ops if isinstance(ops, list) else [], "cursor": cursor}
+    except (OSError, ValueError, TypeError):
+        return {"ops": [], "cursor": 0}
+
+
+def save_depth_edit_history(history):
+    path = session_path("depth_map_edit_history.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(history, handle, separators=(",", ":"))
+
+
+def depth_edit_status(history):
+    cursor = int(history.get("cursor", 0))
+    count = len(history.get("ops", []))
+    return {
+        "can_undo": cursor > 0,
+        "can_redo": cursor < count,
+        "history_position": cursor,
+        "history_count": count,
+        "edited": cursor > 0,
+    }
+
+
+def apply_depth_edit_operation(depth, operation):
+    kind = str(operation.get("operation", "")).lower()
+    if kind == "brush":
+        return apply_depth_brush(
+            depth,
+            operation.get("points", []),
+            radius_fraction=float(operation.get("radius", 0.03)),
+            delta=float(operation.get("delta", 0.08)),
+        )
+    if kind == "adjust":
+        return adjust_depth_map(
+            depth,
+            black=float(operation.get("black", 0.0)),
+            white=float(operation.get("white", 1.0)),
+            gamma=float(operation.get("gamma", 1.0)),
+            blur_radius=float(operation.get("blur", 0.0)),
+        )
+    raise ValueError("Unsupported depth edit operation")
+
+
+def rebuild_depth_from_history(base_depth, history):
+    depth = base_depth.astype(np.float32)
+    for operation in history.get("ops", [])[:int(history.get("cursor", 0))]:
+        depth = apply_depth_edit_operation(depth, operation)
+    return np.clip(depth, 0.0, 1.0).astype(np.float32)
+
+
 @app.route("/depth-map/edit", methods=["POST"])
 def edit_depth_map():
     try:
@@ -352,37 +413,72 @@ def edit_depth_map():
         operation = str(payload.get("operation", "")).lower()
         depth_path = session_path("depth_map.npy")
         base_path = session_path("depth_map_edit_base.npy")
+        history = load_depth_edit_history()
 
-        if operation == "reset":
+        if operation == "status":
+            return jsonify({"success": True, **depth_edit_status(history)}), 200
+
+        if operation in ("undo", "redo", "reset"):
             if not os.path.exists(base_path):
-                return jsonify({"success": True, "edited": False}), 200
-            depth = np.load(base_path, allow_pickle=False).astype(np.float32)
-            os.remove(base_path)
+                return jsonify({"success": True, **depth_edit_status(history)}), 200
+            if operation == "undo" and history["cursor"] > 0:
+                history["cursor"] -= 1
+            elif operation == "redo" and history["cursor"] < len(history["ops"]):
+                history["cursor"] += 1
+            elif operation == "reset":
+                history["cursor"] = 0
+            base_depth = np.load(base_path, allow_pickle=False).astype(np.float32)
+            depth = rebuild_depth_from_history(base_depth, history)
+            save_depth_edit_history(history)
             save_active_depth(depth, editing=True)
-            return jsonify({"success": True, "edited": False}), 200
+            return jsonify({"success": True, **depth_edit_status(history)}), 200
 
         depth = np.load(depth_path, allow_pickle=False).astype(np.float32)
         if not os.path.exists(base_path):
             np.save(base_path, depth, allow_pickle=False)
 
         if operation == "brush":
-            points = payload.get("points", [])
-            radius = float(payload.get("radius", 0.03))
-            delta = float(payload.get("delta", 0.08))
-            depth = apply_depth_brush(depth, points, radius_fraction=radius, delta=delta)
+            points = []
+            for point in payload.get("points", []):
+                if not isinstance(point, dict):
+                    continue
+                points.append({
+                    "x": round(max(0.0, min(1.0, float(point.get("x", 0.5)))), 5),
+                    "y": round(max(0.0, min(1.0, float(point.get("y", 0.5)))), 5),
+                })
+            edit_operation = {
+                "operation": "brush",
+                "points": points,
+                "radius": max(0.001, min(0.25, float(payload.get("radius", 0.03)))),
+                "delta": max(-1.0, min(1.0, float(payload.get("delta", 0.08)))),
+            }
         elif operation == "adjust":
-            depth = adjust_depth_map(
-                depth,
-                black=float(payload.get("black", 0.0)),
-                white=float(payload.get("white", 1.0)),
-                gamma=float(payload.get("gamma", 1.0)),
-                blur_radius=float(payload.get("blur", 0.0)),
-            )
+            edit_operation = {
+                "operation": "adjust",
+                "black": max(0.0, min(0.99, float(payload.get("black", 0.0)))),
+                "white": max(0.01, min(1.0, float(payload.get("white", 1.0)))),
+                "gamma": max(0.1, min(5.0, float(payload.get("gamma", 1.0)))),
+                "blur": max(0.0, min(100.0, float(payload.get("blur", 0.0)))),
+            }
+            if edit_operation["white"] <= edit_operation["black"]:
+                return jsonify({"error": "white point must be greater than black point"}), 400
         else:
-            return jsonify({"error": "operation must be brush, adjust, or reset"}), 400
+            return jsonify({"error": "operation must be brush, adjust, undo, redo, reset, or status"}), 400
 
+        history["ops"] = history["ops"][:history["cursor"]]
+        if len(history["ops"]) >= DEPTH_EDIT_HISTORY_LIMIT:
+            base_depth = np.load(base_path, allow_pickle=False).astype(np.float32)
+            base_depth = apply_depth_edit_operation(base_depth, history["ops"][0])
+            np.save(base_path, base_depth, allow_pickle=False)
+            history["ops"] = history["ops"][1:]
+            history["cursor"] = max(0, history["cursor"] - 1)
+
+        history["ops"].append(edit_operation)
+        history["cursor"] = len(history["ops"])
+        depth = apply_depth_edit_operation(depth, edit_operation)
+        save_depth_edit_history(history)
         save_active_depth(depth, editing=True)
-        return jsonify({"success": True, "edited": True}), 200
+        return jsonify({"success": True, **depth_edit_status(history)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
