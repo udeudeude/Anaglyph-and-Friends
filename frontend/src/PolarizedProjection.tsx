@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StereoPairDraft } from './studioAssets'
 import './styles/PolarizedProjection.css'
+import UiIcon from './UiIcon'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type Polarization = 'linear' | 'circular'
@@ -161,7 +162,7 @@ function PolarizedProjection({ pair, generatedPairAvailable, setProcessingStage 
             <label>Keystone Y <input type="number" min="-15" max="15" step="0.1" value={value.keystoneY} onChange={e => setValue({ ...value, keystoneY: Number(e.target.value) })}/><small>°</small></label>
             <label>Brightness <input type="number" min="20" max="150" value={value.brightness} onChange={e => setValue({ ...value, brightness: Number(e.target.value) })}/><small>%</small></label>
         </div>
-        <button onClick={() => setValue(defaultAlign)}>Reset alignment</button>
+        <button onClick={() => setValue(defaultAlign)}><UiIcon name="reset" /> Reset alignment</button>
     </div>
 
     return <main className="polarWorkspace">
@@ -179,13 +180,13 @@ function PolarizedProjection({ pair, generatedPairAvailable, setProcessingStage 
         {polarization === 'linear' ? <p className="polarFine">Linear glasses only work with matching orthogonal axes. Rotating your head causes crosstalk. The exact printed/physical axis of an unidentified pair should be measured rather than inferred from its frame.</p> : <p className="polarFine">Circular systems require matching handedness and projector filters built as circular polarizers. Different cinema systems are not automatically interchangeable merely because both are called “circular.”</p>}
 
         <div className="polarModeBar"><button className={mode === 'images' ? 'active' : ''} onClick={() => setMode('images')}>Stereo images</button><button className={mode === 'grid' ? 'active' : ''} onClick={() => setMode('grid')}>Alignment grid</button><button className={mode === 'leakage' ? 'active' : ''} onClick={() => setMode('leakage')}>Crosstalk test</button></div>
-        <div className="polarStages"><div ref={leftStage} className="polarStage">{renderContent('left', physicalLeft, leftAlign)}<button onClick={() => leftStage.current?.requestFullscreen?.()}>Fullscreen A</button></div><div ref={rightStage} className="polarStage">{renderContent('right', physicalRight, rightAlign)}<button onClick={() => rightStage.current?.requestFullscreen?.()}>Fullscreen B</button></div></div>
+        <div className="polarStages"><div ref={leftStage} className="polarStage">{renderContent('left', physicalLeft, leftAlign)}<button onClick={() => leftStage.current?.requestFullscreen?.()}><UiIcon name="expand" /> Fullscreen A</button></div><div ref={rightStage} className="polarStage">{renderContent('right', physicalRight, rightAlign)}<button onClick={() => rightStage.current?.requestFullscreen?.()}><UiIcon name="expand" /> Fullscreen B</button></div></div>
         <div className="polarWindowActions"><button disabled={!ready && mode === 'images'} onClick={() => openProjectorWindow('left')}>Open projector A window</button><button disabled={!ready && mode === 'images'} onClick={() => openProjectorWindow('right')}>Open projector B window</button></div>
         <p className="polarFine">For a two-display setup, open both projector windows, drag each to its projector/display, then use the Fullscreen button inside each window. Alignment-grid and crosstalk modes update in the open windows as you switch modes or adjust geometry.</p>
         {loading && <div className="polarStatus">Preparing stereo eyes…</div>}{error && <div className="phantogramError">{error}</div>}
 
         <div className="polarAlignment">{alignControl('Projector A alignment', leftAlign, setLeftAlign)}{alignControl('Projector B alignment', rightAlign, setRightAlign)}</div>
-        <div className="polarDownloads"><button disabled={!ready} onClick={() => void downloadEye('left')}>Download projector A PNG</button><button disabled={!ready} onClick={() => void downloadEye('right')}>Download projector B PNG</button></div>
+        <div className="polarDownloads"><button disabled={!ready} onClick={() => void downloadEye('left')}><UiIcon name="download" /> Download projector A PNG</button><button disabled={!ready} onClick={() => void downloadEye('right')}><UiIcon name="download" /> Download projector B PNG</button></div>
         <p className="polarFine">For mismatched projectors, first make their physical image rectangles overlap as closely as possible with projector placement/zoom. Then use software translation, scale and rotation for fine registration. Keystone is best corrected optically or in each projector when possible; the preview skew controls are primarily diagnostic.</p>
     </main>
 }
