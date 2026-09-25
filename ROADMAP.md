@@ -77,6 +77,30 @@ Still worth developing after physical testing:
 - print-page layouts with margins, labels, and viewing-position instructions
 - calibration against real printed examples to refine useful default eye height, viewing distance, and relief limits
 
+## Print calibration & setup — implemented simple-first workspace
+
+A dedicated **Print calibration & setup** surface now lives under **More techniques -> Advanced tools** rather than in the primary workflow. Its default state is intentionally simple: download one general-purpose Letter / 300 DPI calibration sheet and print it at 100% / Actual Size.
+
+The generated sheet can include:
+
+- exact 100 mm and 4 inch rulers plus a 50 × 50 mm reference box
+- registration targets
+- grayscale response patches
+- RGB / CMY / common anaglyph-filter color patches
+- fine-line and alternating-bar resolution tests
+- a handwritten measurement/observation area
+- physical PNG DPI metadata
+
+A collapsed **Advanced print setup** section exposes A4/custom sizes, DPI and section selection only when requested. A nested profile tool can save printer, paper/material, driver/media setting, measured X/Y scaling, and notes, and can export those settings as JSON for traceability.
+
+This establishes a UI principle for future calibration work: **useful defaults first; specialist controls remain available through deliberate progressive disclosure.**
+
+Remaining pre-print software opportunities:
+
+- make other print-oriented exports optionally attach/reuse the same print profile metadata
+- add page-layout wrappers with crop/registration marks and viewing instructions around selected final artworks
+- eventually add calibrated correction factors only after real measurements exist rather than guessing them
+
 ## Documentation / onboarding
 
 - **Add helpful screenshots to the README and beginner setup instructions.**

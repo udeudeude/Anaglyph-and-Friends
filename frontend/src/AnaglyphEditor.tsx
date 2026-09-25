@@ -20,6 +20,7 @@ type Props = {
     onOpenPhantogram: () => void;
     onOpenColorReveal: () => void;
     onOpenLayered: () => void;
+    onOpenPrintCalibration: () => void;
 };
 
 const coreTechniques = new Set<TechniqueId>(['anaglyph', 'parallel', 'cross']);
@@ -43,7 +44,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered }: Props) {
+function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -209,6 +210,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         }
         if (value === '__layered__') {
             onOpenLayered();
+            return;
+        }
+        if (value === '__print_calibration__') {
+            onOpenPrintCalibration();
             return;
         }
         if (value === '__compatibility__') {
@@ -383,6 +388,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
                     <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
                     <optgroup label="Compositing"><option value="__layered__">Layered 3D Composite</option></optgroup>
+                    <optgroup label="Advanced tools"><option value="__print_calibration__">Print calibration & setup…</option></optgroup>
                     <option className="techniqueMenuDivider" value="__divider__" disabled>────────────</option>
                     <option value="__compatibility__">Even more techniques…</option>
                 </select>
