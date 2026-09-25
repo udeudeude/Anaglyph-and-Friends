@@ -28,9 +28,12 @@ def main():
     red_cyan = make_anaglyph(image, view, 'red-cyan', 'full')
     red_green = make_anaglyph(image, view, 'red-green', 'half')
     red_blue = make_anaglyph(image, view, 'red-blue', 'gray')
+    custom_pair = make_anaglyph(image, view, 'custom', 'gray', '#8040ff', '#20ff60', 75, 125)
     assert red_cyan.shape == image.shape
     assert np.all(red_green[:, :, 0] == 0)
     assert np.all(red_blue[:, :, 1] == 0)
+    assert custom_pair.shape == image.shape and np.max(custom_pair) > 0
+    assert not np.array_equal(red_cyan, custom_pair)
 
     assert compatibility_stereo(image, view, 'topbottom').shape == (image.shape[0] * 2, image.shape[1], 3)
     assert compatibility_stereo(image, view, 'halfsbs').shape == image.shape
