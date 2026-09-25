@@ -105,7 +105,6 @@ Still to validate/refine with a physical reel and viewer:
 - **Additional historical stereograph templates**, typography, backs, publisher marks, numbering, and batch card generation.
 - **Additional phone/viewer profiles** with saved device dimensions and optional lens-distortion correction.
 - **Saved lenticular printer + paper + sheet profiles** once real calibration data is available.
-- **Optional depth map alongside an imported stereo pair**, unlocking depth-dependent techniques without pretending the pair itself supplies a reliable depth field.
 - **More specialized legacy/display encodings** when a concrete device or workflow calls for them.
 
 ## Implemented technique families
@@ -147,7 +146,7 @@ These are intentionally placed behind the main technique chooser so they do not 
 
 ## Depth-source workflow
 
-The visible photograph and the depth source can now be independent.
+The visible photograph and the depth source can now be independent. Imported stereo pairs can also carry an optional depth map aligned to their left-eye image, unlocking ChromaDepth, multi-view wiggle, and autostereograms while retaining the original pair for ordinary stereo outputs.
 
 - Depth Anything V2 remains the default depth source.
 - A replacement depth map can be imported from PNG/JPEG/TIFF/WebP or float32 `.npy` data.
