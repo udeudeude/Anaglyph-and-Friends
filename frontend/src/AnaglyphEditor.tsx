@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import "./styles/AnaglyphEditor.css";
 import TechniqueControls from './TechniqueControls';
 import UiIcon from './UiIcon';
+import type { PrintPageIncomingArtwork } from './printPageAssets';
 import {
     mergeStoredSettings,
     stereoBasedTechniques,
@@ -23,6 +24,7 @@ type Props = {
     onOpenLayered: () => void;
     onOpenPrintCalibration: () => void;
     onOpenPrintPage: () => void;
+    onPreparePrintPage: (incoming: PrintPageIncomingArtwork) => void;
 };
 
 const coreTechniques = new Set<TechniqueId>(['anaglyph', 'parallel', 'cross']);
@@ -46,7 +48,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration, onOpenPrintPage }: Props) {
+function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration, onOpenPrintPage, onPreparePrintPage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -265,26 +267,81 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         return `${names[activeTechnique]}.${ext}`;
     };
 
+    const fetchFullOutputBlob = async () => {
+        let url: string;
+        if (directOutputTechniques.has(activeTechnique)) {
+            const prepare = await fetch(`${apiUrl}/prepare-full?${renderParams()}`, { method: 'GET', credentials: 'include' });
+            if (!prepare.ok) throw new Error(`Full-resolution stereo render failed: ${prepare.status}`);
+            url = directUrl(activeTechnique, 'full');
+        } else {
+            url = specialUrl(activeTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full');
+        }
+        const response = await fetch(url, { method: 'GET', credentials: 'include' });
+        if (!response.ok) throw new Error(`Final output failed: ${response.status}`);
+        return response.blob();
+    };
+
     const downloadCurrent = async () => {
         if (!isDepthMapReady || fullPreparing) return;
         setFullPreparing(true);
         setIsChangeAllowed(false);
         setProcessingStage('full');
         try {
-            let url: string;
-            if (directOutputTechniques.has(activeTechnique)) {
-                const prepare = await fetch(`${apiUrl}/prepare-full?${renderParams()}`, { method: 'GET', credentials: 'include' });
-                if (!prepare.ok) throw new Error(`Full-resolution stereo render failed: ${prepare.status}`);
-                url = directUrl(activeTechnique, 'full');
-            } else {
-                url = specialUrl(activeTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full');
-            }
-            const response = await fetch(url, { method: 'GET', credentials: 'include' });
-            if (!response.ok) throw new Error(`Final output failed: ${response.status}`);
-            triggerBlobDownload(await response.blob(), currentFilename());
+            triggerBlobDownload(await fetchFullOutputBlob(), currentFilename());
             setProcessingStage('ready');
         } catch (error) {
             console.error('Failed to create final download', error);
+            setProcessingStage('error');
+        } finally {
+            setFullPreparing(false);
+            setIsChangeAllowed(true);
+        }
+    };
+
+    const printPageMetadata = () => {
+        const suggestedArtworkWidthIn = activeTechnique === 'stereoscope'
+            ? appliedSettings.stereoscope.cardWidth
+            : activeTechnique === 'mirror'
+                ? appliedSettings.mirror.cardWidth
+                : activeTechnique === 'lenticular'
+                    ? appliedSettings.lenticular.widthIn
+                    : undefined;
+        const sourceDpi = activeTechnique === 'stereoscope'
+            ? appliedSettings.stereoscope.dpi
+            : activeTechnique === 'mirror'
+                ? appliedSettings.mirror.dpi
+                : activeTechnique === 'lenticular'
+                    ? appliedSettings.lenticular.dpi
+                    : undefined;
+        return {
+            technique: activeTechnique,
+            techniqueLabel: techniqueInfo[activeTechnique].label,
+            settings: {
+                technique: cloneSettings(appliedSettings),
+                popOut,
+                swapEyes,
+                strength: appliedStrength,
+                retinalRivalry: optimiseRRAnaglyph,
+                outputFormat: downloadFormat,
+                jpegQuality,
+            },
+            suggestedArtworkWidthIn,
+            sourceDpi,
+        };
+    };
+
+    const prepareCurrentForPrintPage = async () => {
+        if (!isDepthMapReady || fullPreparing || activeTechnique === 'wiggle' || activeTechnique === 'pulfrich') return;
+        setFullPreparing(true);
+        setIsChangeAllowed(false);
+        setProcessingStage('full');
+        try {
+            const blob = await fetchFullOutputBlob();
+            const file = new File([blob], currentFilename(), { type: blob.type || (currentFilename().endsWith('.png') ? 'image/png' : 'image/jpeg') });
+            onPreparePrintPage({ file, source: printPageMetadata() });
+            setProcessingStage('ready');
+        } catch (error) {
+            console.error('Failed to prepare current output for Print Page', error);
             setProcessingStage('error');
         } finally {
             setFullPreparing(false);
@@ -425,7 +482,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <div className="fullscreenDock" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <div className="fullscreenDockHeader">
                         <div><strong>{info.label}</strong><span>Move the pointer above this panel to hide it.</span></div>
-                        <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>D / ⌘S</kbd></>}</button>
+                        <button className="printPageAction" onClick={() => void prepareCurrentForPrintPage()} disabled={!previewUrl || fullPreparing || activeTechnique === 'wiggle' || activeTechnique === 'pulfrich'} title={activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'Animated outputs cannot be placed on a static print page.' : 'Send the full-resolution current output directly to Prepare print page'}>Prepare print page</button>
+                    <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>D / ⌘S</kbd></>}</button>
                     </div>
                     {genericSettings(true)}
                     {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
