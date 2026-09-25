@@ -108,6 +108,12 @@ def main():
     assert len(frames) == 8
     assert all(frame.shape == image.shape for frame in frames)
 
+    pulfrich_right = technique_generator.pulfrich_frames(image, depth, frame_count=12, strength=2.0, dark_eye='right')
+    pulfrich_left = technique_generator.pulfrich_frames(image, depth, frame_count=12, strength=2.0, dark_eye='left')
+    assert len(pulfrich_right) == 12 and len(pulfrich_left) == 12
+    assert all(frame.shape == image.shape for frame in pulfrich_right)
+    assert not np.array_equal(pulfrich_right[3], pulfrich_left[3])
+
     lenticular = technique_generator.lenticular(image, depth, 300, 200, dpi=150, lpi=60, views=3)
     assert lenticular.shape == (200, 300, 3)
 
