@@ -65,3 +65,36 @@
 .depthHistoryActions button{border:1px solid #31557d;border-radius:7px;padding:7px 10px;background:#10233a;color:#a8c1dc;font-size:9px;font-weight:800}
 .depthHistoryActions button:disabled{opacity:.38}
 .depthHistoryActions span{justify-self:end;color:#5f7895;font-size:8px}
+
+/* Focused depth editing: entering Edit depth map moves the work into a large canvas automatically. */
+.depthWorkArea:not(.active){display:contents}
+.depthWorkArea.active{position:fixed;z-index:1200;top:82px;right:20px;bottom:20px;left:calc(var(--sidebar-width,320px) + 24px);display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;border:1px solid #31557d;border-radius:14px;background:#071321;box-shadow:0 28px 90px rgba(0,0,0,.58)}
+.depthWorkHeader{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid #203853}
+.depthWorkHeader>div{display:flex;align-items:center;gap:9px;color:#bad0e7}
+.depthWorkHeader>div>span{display:flex;flex-direction:column;gap:2px}
+.depthWorkHeader strong{font-size:12px}.depthWorkHeader small{color:#66809e;font-size:9px;font-weight:550}
+.depthWorkHeader button{display:inline-flex;align-items:center;gap:6px;border:1px solid #365778;border-radius:8px;padding:8px 11px;background:#10233a;color:#b8cadf;font-size:10px;font-weight:800}
+.depthWorkArea.active .depthPreview{grid-column:1;grid-row:2;width:100%;height:100%;min-height:0;aspect-ratio:auto;border-color:#426f9f;background:#020812}
+.depthWorkArea.active .depthPreview img{width:100%;height:100%;object-fit:contain}
+.depthWorkArea.active .depthEditorControls{grid-column:2;grid-row:2;align-self:stretch;min-height:0;overflow:auto;padding:12px;gap:12px;border-color:#294765;background:#091727}
+.depthEditToggle{display:flex;align-items:center;justify-content:center;gap:7px}
+.depthHistoryActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:10px;border-bottom:1px solid #203853}
+.depthHistoryActions .historyButton{min-width:0;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;border:1px solid #3a628d;border-radius:9px;padding:9px 10px;background:#143151;color:#d2e2f4;font-size:10px;font-weight:800;text-align:left}
+.depthHistoryActions .historyButton:hover:not(:disabled){border-color:#5c91c9;background:#193b61}
+.depthHistoryActions .historyButton:disabled{opacity:.34}
+.depthHistoryActions .historyButton kbd{padding:2px 4px;border:1px solid #476789;border-radius:4px;background:#0c2138;color:#8eacca;font-size:8px;font-weight:700}
+.depthHistoryActions .historyStatus{grid-column:1/-1;justify-self:start;color:#66809e;font-size:8px}
+.depthAdvancedAdjustments{border:1px solid #203a58;border-radius:8px;background:#081421}
+.depthAdvancedAdjustments>summary{cursor:pointer;padding:9px 10px;color:#879fba;font-size:9px;font-weight:800}
+.depthAdvancedAdjustments[open]>summary{border-bottom:1px solid #203a58}
+.depthAdvancedAdjustments .depthAdjustGrid{padding:10px}
+.applyDepthAdjustments{margin:0 10px 10px;width:calc(100% - 20px);border:1px solid #31557d;border-radius:7px;padding:7px;background:#10233a;color:#9fb9d7;font-size:9px;font-weight:750}
+.resetDepthEdits{display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #3b4e65;border-radius:7px;padding:8px;background:#0d1b2c;color:#839ab4;font-size:9px;font-weight:750}
+.resetDepthEdits:disabled,.applyDepthAdjustments:disabled{opacity:.4}
+.depthDownloads button,.closeInspect{display:flex;align-items:center;justify-content:center;gap:5px}
+.sourcePanel .primaryAction>.uiIcon{position:static;margin:0}
+@media(max-width:900px){
+  .depthWorkArea.active{inset:12px;grid-template-columns:1fr;grid-template-rows:auto minmax(260px,1fr) auto}
+  .depthWorkArea.active .depthPreview{grid-column:1;grid-row:2}
+  .depthWorkArea.active .depthEditorControls{grid-column:1;grid-row:3;max-height:38vh}
+}
