@@ -131,3 +131,51 @@ def adjust_depth_map(
         result = cv2.GaussianBlur(result, (0, 0), sigmaX=sigma, sigmaY=sigma)
 
     return np.clip(result, 0.0, 1.0).astype(np.float32)
+
+
+def apply_depth_selection(original: np.ndarray, edited: np.ndarray, selection) -> np.ndarray:
+    """Blend an edited depth map into a normalized rectangular selection.
+
+    Selection coordinates are normalized 0..1. Optional feather is expressed
+    as a fraction of the shorter image dimension. No selection means the whole
+    edited image is returned.
+    """
+    if not isinstance(selection, dict):
+        return np.clip(edited, 0.0, 1.0).astype(np.float32)
+
+    height, width = original.shape[:2]
+    try:
+        x0 = max(0.0, min(1.0, float(selection.get("x0", 0.0))))
+        y0 = max(0.0, min(1.0, float(selection.get("y0", 0.0))))
+        x1 = max(0.0, min(1.0, float(selection.get("x1", 1.0))))
+        y1 = max(0.0, min(1.0, float(selection.get("y1", 1.0))))
+        feather = max(0.0, min(0.25, float(selection.get("feather", 0.0))))
+    except (TypeError, ValueError):
+        return np.clip(edited, 0.0, 1.0).astype(np.float32)
+
+    left, right = sorted((x0, x1))
+    top, bottom = sorted((y0, y1))
+    px0 = max(0, min(width - 1, int(round(left * (width - 1)))))
+    px1 = max(px0 + 1, min(width, int(round(right * (width - 1))) + 1))
+    py0 = max(0, min(height - 1, int(round(top * (height - 1)))))
+    py1 = max(py0 + 1, min(height, int(round(bottom * (height - 1))) + 1))
+
+    mask = np.zeros((height, width), dtype=np.float32)
+    mask[py0:py1, px0:px1] = 1.0
+
+    feather_px = int(round(feather * min(width, height)))
+    if feather_px > 0:
+        inner = np.zeros_like(mask)
+        ix0, ix1 = min(px1, px0 + feather_px), max(px0, px1 - feather_px)
+        iy0, iy1 = min(py1, py0 + feather_px), max(py0, py1 - feather_px)
+        if ix1 > ix0 and iy1 > iy0:
+            inner[iy0:iy1, ix0:ix1] = 1.0
+            mask = cv2.GaussianBlur(mask, (0, 0), sigmaX=max(0.5, feather_px / 2), sigmaY=max(0.5, feather_px / 2))
+            mask *= (np.indices(mask.shape)[1] >= px0) & (np.indices(mask.shape)[1] < px1)
+            mask *= (np.indices(mask.shape)[0] >= py0) & (np.indices(mask.shape)[0] < py1)
+            maximum = float(mask.max())
+            if maximum > 0:
+                mask /= maximum
+
+    result = original.astype(np.float32) * (1.0 - mask) + edited.astype(np.float32) * mask
+    return np.clip(result, 0.0, 1.0).astype(np.float32)
