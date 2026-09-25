@@ -7,6 +7,7 @@ export type StereoPairDraft = {
 export type StereoPairFiles = {
     left: File
     right: File
+    depth?: File | null
 }
 
 export type StudioSource =
