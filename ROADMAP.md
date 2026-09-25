@@ -56,10 +56,11 @@ Implemented:
 - downloadable exact 100 mm ruler for verifying printer scaling
 - regression tests and geometric invariants, including exact identity at zero relief
 
+The workspace also now includes a **calibrated ground-plane mode**. The user marks the four corners of a photographed rectangular plane; source image and depth are rectified together so the chosen rectangle becomes the physical print plane before the eye projections are generated.
+
 Still worth developing after physical testing:
 
-- a **traditional calibrated phantogram mode** using a photographed/identified physical ground plane rather than AI relief alone
-- interactive selection of four ground-plane corners and known plane dimensions
+- richer ground-plane calibration such as known ruler/reference points beyond the four corners
 - optional left/right free-view output in addition to anaglyph
 - print-page layouts with margins, labels, and viewing-position instructions
 - calibration against real printed examples to refine useful default eye height, viewing distance, and relief limits
