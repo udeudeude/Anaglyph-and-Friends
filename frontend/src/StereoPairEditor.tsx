@@ -297,7 +297,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
             <div className="downloadHeading"><div><strong>Imported stereo source</strong><span>Compatible outputs are rendered directly from the original left/right files at full resolution.</span></div><span className="fullResBadge">NO AI REQUIRED</span></div>
             <div className="downloadControls">
                 {fixedGif ? <div className="fixedFormat"><span>Format</span><strong>GIF</strong></div> : fixedPng ? <div className="fixedFormat"><span>Format</span><strong>PNG</strong></div> : <label>Format<select value={downloadFormat} onChange={(event) => setDownloadFormat(event.target.value as 'jpeg' | 'png')}><option value="png">PNG</option><option value="jpeg">JPEG</option></select></label>}
-                {!fixedGif && !fixedPng && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" value={jpegQuality} onChange={(event) => setJpegQuality(Number(event.target.value))} /><strong>{jpegQuality}</strong></label>
+                {!fixedGif && !fixedPng && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" value={jpegQuality} onChange={(event) => setJpegQuality(Number(event.target.value))} /><strong>{jpegQuality}</strong></label>}
                 <div className="eyeDownloads"><button onClick={() => downloadEye('left')} disabled={!pair.left}>Left eye</button><button onClick={() => downloadEye('right')} disabled={!pair.right}>Right eye</button></div>
                 <button className="pairToReel" onClick={onSendToViewMaster} disabled={!pairReady}>Add pair to View-Master</button>
             </div>
