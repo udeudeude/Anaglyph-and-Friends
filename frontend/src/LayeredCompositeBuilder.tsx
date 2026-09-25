@@ -194,6 +194,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
     const foregroundUrl = useMemo(() => foreground ? URL.createObjectURL(foreground) : null, [foreground])
     useEffect(() => () => { if (foregroundUrl) URL.revokeObjectURL(foregroundUrl) }, [foregroundUrl])
     useEffect(() => { localStorage.setItem('aaf-layered-settings', JSON.stringify(settings)) }, [settings])
+    useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
     const patch = (values: Partial<LayerSettings>) => setSettings(current => ({ ...current, ...values }))
 
@@ -205,7 +206,13 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
         const prepareUrl = scope === 'full' ? `${apiUrl}/prepare-full?${params}` : `${apiUrl}/render?${params}`
         const prepare = await fetch(prepareUrl, { credentials: 'include' })
         if (!prepare.ok) throw new Error(`Could not prepare base stereo pair: ${prepare.status}`)
-        const outputParams = new URLSearchParams({ scope, format: 'png', quality: '100', ...Object.fromEntries(params) })
+        const outputParams = new URLSearchParams({
+            scope,
+            format: 'png',
+            quality: '100',
+            pop_out: String(settings.basePopOut),
+            max_disparity_percentage: String(settings.baseStrength),
+        })
         const [leftResponse, rightResponse] = await Promise.all([
             fetch(`${apiUrl}/output/left?${outputParams}`, { credentials: 'include' }),
             fetch(`${apiUrl}/output/right?${outputParams}`, { credentials: 'include' }),
@@ -262,6 +269,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
             return
         }
         const timer = window.setTimeout(async () => {
+            let cancelled = false
             setLoading(true)
             setError('')
             setProcessingStage('technique')
@@ -269,8 +277,10 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                 const canvas = await render('preview')
                 const blob = await canvasBlob(canvas)
                 const next = URL.createObjectURL(blob)
-                setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return next })
-                setProcessingStage('ready')
+                if (!cancelled) {
+                    setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return next })
+                    setProcessingStage('ready')
+                } else URL.revokeObjectURL(next)
             } catch (caught) {
                 console.error(caught)
                 setError(caught instanceof Error ? caught.message : 'Could not render layered composite.')
@@ -279,7 +289,10 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                 setLoading(false)
             }
         }, 180)
-        return () => window.clearTimeout(timer)
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
     }, [isDepthMapReady, foreground, layerDepth, settings, mode])
 
     const download = async () => {
@@ -328,7 +341,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                     <div><strong>Foreground object</strong><span>{foreground?.name || 'Transparent PNG/WebP recommended'}</span><button onClick={() => foregroundInput.current?.click()}>{foreground ? 'Replace foreground' : 'Choose foreground'}</button>{foreground && <button onClick={() => setForeground(null)}>Remove</button>}</div>
                     <div><strong>Optional object depth</strong><span>{layerDepth?.name || 'Grayscale image aligned to foreground'}</span><button onClick={() => depthInput.current?.click()}>{layerDepth ? 'Replace object depth' : 'Choose object depth'}</button>{layerDepth && <button onClick={() => setLayerDepth(null)}>Remove</button>}</div>
                     <input ref={foregroundInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseForeground(event.target.files?.[0]); event.currentTarget.value = '' }} />
-                    <input ref={depthInput} type="file" accept="image/png,image/webp,image/jpeg,image/tiff" onChange={event => { chooseDepth(event.target.files?.[0]); event.currentTarget.value = '' }} />
+                    <input ref={depthInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseDepth(event.target.files?.[0]); event.currentTarget.value = '' }} />
                 </div>
 
                 {foregroundUrl && <div className="layeredObjectPreview"><img src={foregroundUrl} alt="Foreground object"/></div>}
