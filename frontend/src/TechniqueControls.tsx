@@ -18,8 +18,29 @@ const numberValue = (value: string, fallback: number) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+type SavedFilterProfile = {
+    name: string;
+    glasses: TechniqueSettings['anaglyph']['glasses'];
+    colorMode: string;
+    screen: TechniqueSettings['anaglyph']['screen'];
+    print: TechniqueSettings['anaglyph']['print'];
+};
+
+const FILTER_PROFILE_KEY = 'aaf-filter-profiles';
+
+const readFilterProfiles = (): SavedFilterProfile[] => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(FILTER_PROFILE_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.name === 'string') : [];
+    } catch {
+        return [];
+    }
+};
+
 function TechniqueControls({ technique, settings, setSettings, onApply, dirty, disabled, apiUrl }: Props) {
     const [patternStatus, setPatternStatus] = useState('');
+    const [filterProfiles, setFilterProfiles] = useState<SavedFilterProfile[]>(readFilterProfiles);
+    const [filterProfileName, setFilterProfileName] = useState('');
     const update = <K extends keyof TechniqueSettings>(section: K, values: Partial<TechniqueSettings[K]>) => {
         setSettings({ ...settings, [section]: { ...settings[section], ...values } });
     };
@@ -57,6 +78,52 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 [target]: { ...settings.anaglyph[target], ...values },
             },
         });
+    };
+
+    const persistFilterProfiles = (profiles: SavedFilterProfile[]) => {
+        setFilterProfiles(profiles);
+        localStorage.setItem(FILTER_PROFILE_KEY, JSON.stringify(profiles));
+    };
+
+    const saveFilterProfile = () => {
+        const name = filterProfileName.trim();
+        if (!name) return;
+        const profile: SavedFilterProfile = {
+            name,
+            glasses: settings.anaglyph.glasses,
+            colorMode: settings.anaglyph.colorMode,
+            screen: { ...settings.anaglyph.screen },
+            print: { ...settings.anaglyph.print },
+        };
+        const existing = filterProfiles.findIndex(item => item.name.toLowerCase() === name.toLowerCase());
+        const next = [...filterProfiles];
+        if (existing >= 0) next[existing] = profile;
+        else next.push(profile);
+        persistFilterProfiles(next.sort((a, b) => a.name.localeCompare(b.name)));
+        setFilterProfileName(name);
+    };
+
+    const loadFilterProfile = (name: string) => {
+        const profile = filterProfiles.find(item => item.name === name);
+        if (!profile) return;
+        setFilterProfileName(profile.name);
+        setSettings({
+            ...settings,
+            anaglyph: {
+                ...settings.anaglyph,
+                glasses: profile.glasses,
+                colorMode: profile.colorMode,
+                screen: { ...profile.screen },
+                print: { ...profile.print },
+            },
+        });
+    };
+
+    const deleteFilterProfile = () => {
+        const name = filterProfileName.trim();
+        if (!name) return;
+        persistFilterProfiles(filterProfiles.filter(item => item.name !== name));
+        setFilterProfileName('');
     };
 
     const applyCardboardPreset = (preset: TechniqueSettings['cardboard']['preset']) => {
@@ -148,6 +215,14 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
             </div>}
             <div className="calibrationBox">
                 <div><strong>{s.target === 'screen' ? 'Screen profile' : 'Print profile'}</strong><span>Adjust the two output colors and intensities while viewing through the actual filters. Minimize the wrong-eye image rather than trying to match the apparent lens color. Screen and print values are saved separately.</span></div>
+                <div className="techniqueGrid two" style={{marginTop:'10px'}}>
+                    <label><span>Saved glasses / filter profile</span><select value={filterProfiles.some(item => item.name === filterProfileName) ? filterProfileName : ''} onChange={(e) => loadFilterProfile(e.target.value)}><option value="">Choose saved profile…</option>{filterProfiles.map(profile => <option key={profile.name} value={profile.name}>{profile.name}</option>)}</select></label>
+                    <label><span>Profile name</span><input type="text" maxLength={80} placeholder="e.g. Plastic red / green" value={filterProfileName} onChange={(e) => setFilterProfileName(e.target.value)} /></label>
+                </div>
+                <div className="presetRow" style={{marginTop:'8px'}}>
+                    <button type="button" onClick={saveFilterProfile} disabled={!filterProfileName.trim()}>Save / update profile</button>
+                    <button type="button" onClick={deleteFilterProfile} disabled={!filterProfiles.some(item => item.name === filterProfileName)}>Delete profile</button>
+                </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginTop:'10px'}}>
                     <div style={{height:'54px',background:calibration.leftColor,opacity:Math.min(1,calibration.leftGain/100),border:'1px solid #777'}} title="Left-eye calibration swatch" />
                     <div style={{height:'54px',background:calibration.rightColor,opacity:Math.min(1,calibration.rightGain/100),border:'1px solid #777'}} title="Right-eye calibration swatch" />
