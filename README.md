@@ -312,6 +312,14 @@ The current code intentionally leaves physical calibration items explicit rather
 
 ### Physical print techniques
 
+- **Print calibration & setup** (under **More techniques -> Advanced tools**)
+  - one-click general calibration sheet using a ready-to-use Letter / 300 DPI default
+  - exact 100 mm and 4 inch scale rulers
+  - registration targets, grayscale ramp, RGB/CMY/filter patches, and fine-line tests
+  - embedded PNG physical-resolution metadata
+  - optional A4/custom page sizes and selectable test sections under a collapsed **Advanced print setup** panel
+  - optional saved printer/paper/material profiles and a setup JSON export for recording the exact test conditions
+  - normal users do not encounter these controls unless they deliberately open the calibration tool
 - **Lenticular 3D interlacing**
   - 60 LPI / 600 DPI / 6-view starting preset
   - 50 LPI and 40 LPI starting presets
@@ -327,7 +335,7 @@ The current code intentionally leaves physical calibration items explicit rather
   - red/cyan, red/green, and red/blue output
   - print-ready PNG with physical DPI metadata
   - downloadable exact **100 mm calibration ruler** for checking printer scaling
-  - experimental: arbitrary photographs are interpreted as textured reliefs; a traditional calibrated ground-plane mode remains future work
+  - experimental: arbitrary photographs are interpreted as textured reliefs; calibrated ground-plane rectification is available when the photograph contains a known rectangular plane
 
 ### Display and compatibility formats
 
@@ -337,7 +345,7 @@ The current code intentionally leaves physical calibration items explicit rather
 - **Column-interlaced stereo**
 - **Checkerboard stereo**
 
-Device- and print-specific information is deliberately hidden until that technique is selected. Each such mode opens with a practical standard starting point rather than an empty form.
+Device- and print-specific information is deliberately hidden until that technique is selected. Each such mode opens with a practical standard starting point rather than an empty form. Calibration and printer-management controls are treated as advanced tools: they remain available, but the ordinary image-making workflow does not require users to see or understand them.
 
 ## Interface
 
