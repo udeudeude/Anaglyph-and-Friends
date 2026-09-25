@@ -4,10 +4,9 @@ This file tracks ideas that are intentionally **not** part of the current implem
 
 ## Explicitly deferred larger projects
 
-1. **Packaged macOS application**
-   - double-click launch
-   - bundle/start local backend automatically
-   - eliminate Terminal setup for normal use
+1. **Self-contained packaged macOS application**
+   - one-click start/stop app bundles are now included for an already-installed local edition
+   - future package should bundle or bootstrap Python/Node dependencies instead of relying on the README setup
    - eventually consider signing/notarization and Intel/Apple Silicon packaging
 
 2. **Independent transparent 3D foreground layers**

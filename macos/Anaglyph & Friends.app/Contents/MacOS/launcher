@@ -1,0 +1,62 @@
+#!/bin/bash
+set -u
+
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+LOG_DIR="$HOME/Library/Logs/Anaglyph-and-Friends"
+PID_DIR="$HOME/Library/Application Support/Anaglyph-and-Friends"
+BACKEND_PY="$ROOT/backend/.venv/bin/python"
+FRONTEND_DIR="$ROOT/frontend"
+
+mkdir -p "$LOG_DIR" "$PID_DIR"
+export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/current/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+show_error() {
+  /usr/bin/osascript -e "display dialog \"$1\" buttons {\"OK\"} default button 1 with icon stop"
+}
+
+if [ ! -x "$BACKEND_PY" ]; then
+  show_error "The local Python environment is not installed yet. Complete the README local setup once, then this app can start Anaglyph & Friends without Terminal."
+  exit 1
+fi
+
+if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+  show_error "The frontend dependencies are not installed yet. Run npm install in the frontend folder once, then try again."
+  exit 1
+fi
+
+NPM="$(command -v npm || true)"
+if [ -z "$NPM" ]; then
+  show_error "npm could not be found. Install Node.js or make sure npm is available in /usr/local/bin or /opt/homebrew/bin."
+  exit 1
+fi
+
+alive() {
+  [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
+}
+
+if ! alive "$PID_DIR/backend.pid"; then
+  (
+    cd "$ROOT/backend" || exit 1
+    nohup "$BACKEND_PY" app.py >> "$LOG_DIR/backend.log" 2>&1 &
+    echo $! > "$PID_DIR/backend.pid"
+  )
+fi
+
+if ! alive "$PID_DIR/frontend.pid"; then
+  (
+    cd "$FRONTEND_DIR" || exit 1
+    nohup "$NPM" run dev -- --host 127.0.0.1 >> "$LOG_DIR/frontend.log" 2>&1 &
+    echo $! > "$PID_DIR/frontend.pid"
+  )
+fi
+
+for attempt in $(seq 1 60); do
+  if /usr/bin/curl --fail --silent http://127.0.0.1:5173/ >/dev/null 2>&1; then
+    /usr/bin/open http://127.0.0.1:5173/
+    exit 0
+  fi
+  sleep 1
+done
+
+show_error "Anaglyph & Friends did not finish starting. Check ~/Library/Logs/Anaglyph-and-Friends/backend.log and frontend.log."
+exit 1
