@@ -11,7 +11,7 @@ import numpy as np
 
 from anaglyph_generator import anaglyph_generator
 from technique_generator import technique_generator
-from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram
+from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram, warp_ground_plane_to_print
 from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
 from dotenv import load_dotenv
@@ -726,6 +726,16 @@ def special_phantogram():
         if glasses not in ("red-cyan", "red-green", "red-blue"):
             return jsonify({"error": "glasses must be red-cyan, red-green, or red-blue"}), 400
         reverse_depth = request.args.get("reverse_depth", "false").lower() == "true"
+        ground_plane = request.args.get("ground_plane", "false").lower() == "true"
+        plane_corners = None
+        if ground_plane:
+            raw_corners = request.args.get("plane_corners", "")
+            try:
+                plane_corners = json.loads(raw_corners)
+            except json.JSONDecodeError as exc:
+                raise ValueError("plane_corners must be JSON containing four [x,y] points") from exc
+            if not isinstance(plane_corners, list) or len(plane_corners) != 4:
+                raise ValueError("Ground plane requires exactly four corners")
 
         image, depth = source_and_depth("full")
         full_w = max(300, int(round(width_in * dpi)))
@@ -736,7 +746,10 @@ def special_phantogram():
             output_h = max(300, int(round(full_h * scale)))
         else:
             output_w, output_h = full_w, full_h
-        image, depth = fit_to_print(image, depth, output_w, output_h)
+        if ground_plane:
+            image, depth = warp_ground_plane_to_print(image, depth, plane_corners, output_w, output_h)
+        else:
+            image, depth = fit_to_print(image, depth, output_w, output_h)
         output, _, _ = render_phantogram(
             image,
             depth,
