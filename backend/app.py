@@ -444,7 +444,7 @@ def prepare_full_stereo():
         return jsonify({"error": str(e)}), 400
 
 
-def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, anaglyph_type="red-cyan", anaglyph_color="full"):
+def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, anaglyph_type="red-cyan", anaglyph_color="full", anaglyph_left_color="#ff0000", anaglyph_right_color="#00ffff", anaglyph_left_gain=100.0, anaglyph_right_gain=100.0):
     left_image, right_image = stereo_arrays(scope, pop_out, strength, swap_eyes)
 
     if kind == "left":
@@ -458,7 +458,7 @@ def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, ana
     if kind == "anaglyph":
         if optimised and anaglyph_type == "red-cyan" and anaglyph_color == "full":
             return anaglyph_generator.generate_optimised_RR_anaglyph(left_image, right_image)
-        return make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color)
+        return make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
     if kind in {"topbottom", "halfsbs", "rowinterlaced", "columninterlaced", "checkerboard"}:
         return compatibility_stereo(left_image, right_image, kind)
     raise ValueError("Unknown stereo output kind")
@@ -473,12 +473,16 @@ def get_output(kind):
         swap_eyes = parse_swap_eyes()
         anaglyph_type = request.args.get("anaglyph_type", "red-cyan").lower()
         anaglyph_color = request.args.get("anaglyph_color", "full").lower()
+        anaglyph_left_color = request.args.get("anaglyph_left_color", "#ff0000")
+        anaglyph_right_color = request.args.get("anaglyph_right_color", "#00ffff")
+        anaglyph_left_gain = float(request.args.get("anaglyph_left_gain", 100))
+        anaglyph_right_gain = float(request.args.get("anaglyph_right_gain", 100))
         output_format = request.args.get("format", "jpeg").lower()
         quality = int(request.args.get("quality", 95))
         download = request.args.get("download", "false").lower() == "true"
         if output_format not in ("jpeg", "jpg", "png"):
             return jsonify({"error": "format must be jpeg or png"}), 400
-        output = build_output(kind.lower(), scope, pop_out, strength, optimised, swap_eyes, anaglyph_type, anaglyph_color)
+        output = build_output(kind.lower(), scope, pop_out, strength, optimised, swap_eyes, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
         names = {
             "anaglyph": f"{anaglyph_type}-anaglyph",
             "parallel": "parallel-stereo",
@@ -551,6 +555,35 @@ def special_stereoscope():
             card_tone=request.args.get("card_tone", "cream"),
         )
         return send_cv_image(output, "stereoscope-card", "png", 100, request.args.get("download", "false").lower() == "true")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/special/mirror-stereoscope", methods=["GET"])
+def special_mirror_stereoscope():
+    try:
+        pop_out, strength = parse_render_parameters()
+        scope = request.args.get("scope", "preview").lower()
+        dpi = max(72, min(1200, int(request.args.get("dpi", 300))))
+        render_dpi = min(dpi, 180) if scope == "preview" else dpi
+        left, right = stereo_arrays("preview" if scope == "preview" else "full", pop_out, strength, parse_swap_eyes())
+        output = technique_generator.mirror_stereoscope(
+            left,
+            right,
+            dpi=render_dpi,
+            card_width_in=float(request.args.get("card_width", 8.0)),
+            card_height_in=float(request.args.get("card_height", 4.0)),
+            image_width_in=float(request.args.get("image_width", 3.0)),
+            image_height_in=float(request.args.get("image_height", 3.0)),
+            mirror_gap_in=float(request.args.get("mirror_gap", 0.5)),
+            reflected_eye=request.args.get("reflected_eye", "right"),
+            show_guide=request.args.get("show_guide", "true").lower() == "true",
+        )
+        download = request.args.get("download", "false").lower() == "true"
+        if scope == "full":
+            pil = Image.fromarray(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+            return send_pil_png(pil, "single-mirror-stereoscope.png", dpi, download)
+        return send_cv_image(output, "single-mirror-stereoscope", "png", 100, download)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
