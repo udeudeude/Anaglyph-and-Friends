@@ -1,5 +1,5 @@
 import numpy as np
-from phantogram_generator import calibration_ruler, fit_to_print, project_relief, render_phantogram
+from phantogram_generator import calibration_ruler, fit_to_print, project_relief, render_phantogram, warp_ground_plane_to_print
 
 
 def main():
@@ -21,6 +21,24 @@ def main():
     assert fitted_image.shape == (120, 160, 3)
     assert fitted_depth.shape == (120, 160)
     assert fitted_depth.dtype == np.float32
+
+    rectified_image, rectified_depth = warp_ground_plane_to_print(
+        image,
+        depth,
+        [[0, 0], [1, 0], [1, 1], [0, 1]],
+        w,
+        h,
+    )
+    assert rectified_image.shape == image.shape
+    assert rectified_depth.shape == depth.shape
+    assert rectified_depth.dtype == np.float32
+    assert np.max(np.abs(rectified_depth - depth)) < 1e-4
+
+    perspective_corners = [[0.12, 0.18], [0.88, 0.12], [0.95, 0.92], [0.08, 0.86]]
+    perspective_image, perspective_depth = warp_ground_plane_to_print(image, depth, perspective_corners, 160, 100)
+    assert perspective_image.shape == (100, 160, 3)
+    assert perspective_depth.shape == (100, 160)
+    assert perspective_depth.min() >= 0 and perspective_depth.max() <= 1
 
     anaglyph, l, r = render_phantogram(image, depth, relief_mm=35)
     assert anaglyph.shape == image.shape and l.shape == image.shape and r.shape == image.shape

@@ -299,9 +299,10 @@ The current code intentionally leaves physical calibration items explicit rather
   - multi-view synthesis from the AI depth map
   - printable **black/white calibration bars** across a user-selected LPI range
   - calibration PNG includes DPI metadata; print it at **100% / Actual Size with all fit-to-page scaling disabled**
-- **AI Relief Phantogram**
+- **Phantogram**
   - separate physical-print workspace using the current source and active depth map
-  - treats the depth map as a height field above a flat print and projects it from two physical eye positions
+  - AI-relief mode treats the depth map as a height field above a flat print and projects it from two physical eye positions
+  - calibrated ground-plane mode lets you mark four corners of a photographed rectangular plane and perspective-rectifies that plane to the physical print before stereo projection
   - configurable print size, DPI, viewing distance, eye height, eye separation, maximum relief, and depth direction
   - red/cyan, red/green, and red/blue output
   - print-ready PNG with physical DPI metadata
@@ -458,7 +459,7 @@ Technique renderers:
 - `GET /special/autostereogram?style=random|pattern`
 - `GET /special/lenticular`
 - `GET /lenticular/calibration`
-- `GET /special/phantogram`
+- `GET /special/phantogram` - AI-relief or calibrated-ground-plane physical projection
 - `GET /phantogram/calibration`
 
 Legacy `/anaglyph` and `/stereo-pair` routes remain for compatibility.

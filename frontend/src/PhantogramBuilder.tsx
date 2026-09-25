@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { parseModelFile, renderModelPhantogram, type ModelMesh } from './modelPhantogram'
 import './styles/PhantogramBuilder.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type Glasses = 'red-cyan' | 'red-green' | 'red-blue'
-type SourceMode = 'relief' | 'model'
+type SourceMode = 'relief' | 'groundplane' | 'model'
+type PlanePoint = [number, number]
 
-type Props = { isDepthMapReady: boolean; setProcessingStage: (stage: ProcessingStage) => void }
+type Props = { isDepthMapReady: boolean; sourceFile: File | null; setProcessingStage: (stage: ProcessingStage) => void }
 type Settings = {
     dpi: number; widthIn: number; heightIn: number; viewDistanceIn: number; eyeHeightIn: number; ipdMm: number; reliefMm: number; glasses: Glasses; reverseDepth: boolean
     rotateX: number; rotateY: number; rotateZ: number; footprintPct: number
@@ -14,7 +16,9 @@ type Settings = {
 const defaults: Settings = { dpi: 300, widthIn: 8, heightIn: 6, viewDistanceIn: 20, eyeHeightIn: 14, ipdMm: 63, reliefMm: 35, glasses: 'red-cyan', reverseDepth: false, rotateX: 0, rotateY: 0, rotateZ: 0, footprintPct: 72 }
 const loadSettings = (): Settings => { try { return { ...defaults, ...JSON.parse(localStorage.getItem('aaf-phantogram-settings') || '{}') } } catch { return defaults } }
 
-function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
+const defaultPlaneCorners: PlanePoint[] = [[0.15, 0.15], [0.85, 0.15], [0.85, 0.85], [0.15, 0.85]]
+
+function PhantogramBuilder({ isDepthMapReady, sourceFile, setProcessingStage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || 'http://localhost:8000'
     const modelInputRef = useRef<HTMLInputElement>(null)
     const [sourceMode, setSourceMode] = useState<SourceMode>('relief')
@@ -25,14 +29,28 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
     const [loading, setLoading] = useState(false)
     const [downloading, setDownloading] = useState(false)
     const [error, setError] = useState('')
+    const [sourceUrl, setSourceUrl] = useState<string | null>(null)
+    const [planeCorners, setPlaneCorners] = useState<PlanePoint[]>(defaultPlaneCorners)
+    const [activeCorner, setActiveCorner] = useState(0)
 
-    const params = useMemo(() => new URLSearchParams({ dpi: String(settings.dpi), width_in: String(settings.widthIn), height_in: String(settings.heightIn), view_distance_in: String(settings.viewDistanceIn), eye_height_in: String(settings.eyeHeightIn), ipd_mm: String(settings.ipdMm), relief_mm: String(settings.reliefMm), glasses: settings.glasses, reverse_depth: String(settings.reverseDepth) }), [settings])
+    const params = useMemo(() => new URLSearchParams({ dpi: String(settings.dpi), width_in: String(settings.widthIn), height_in: String(settings.heightIn), view_distance_in: String(settings.viewDistanceIn), eye_height_in: String(settings.eyeHeightIn), ipd_mm: String(settings.ipdMm), relief_mm: String(settings.reliefMm), glasses: settings.glasses, reverse_depth: String(settings.reverseDepth), ground_plane: String(sourceMode === 'groundplane'), plane_corners: JSON.stringify(planeCorners) }), [settings, sourceMode, planeCorners])
     const modelSettings = useMemo(() => ({ widthIn: settings.widthIn, heightIn: settings.heightIn, dpi: settings.dpi, viewDistanceIn: settings.viewDistanceIn, eyeHeightIn: settings.eyeHeightIn, ipdMm: settings.ipdMm, reliefMm: settings.reliefMm, glasses: settings.glasses, rotateX: settings.rotateX, rotateY: settings.rotateY, rotateZ: settings.rotateZ, footprintPct: settings.footprintPct }), [settings])
-    const ready = sourceMode === 'model' ? !!model : isDepthMapReady
+    const ready = sourceMode === 'model' ? !!model : sourceMode === 'groundplane' ? isDepthMapReady && !!sourceFile : isDepthMapReady
     const presetValue = settings.widthIn === 8 && settings.heightIn === 6 ? '8x6' : settings.widthIn === 10 && settings.heightIn === 7.5 ? '10x7.5' : settings.widthIn === 7 && settings.heightIn === 5 ? '7x5' : 'custom'
     const glassesLabel: Record<Glasses, string> = { 'red-cyan': 'Red / Cyan', 'red-green': 'Red / Green', 'red-blue': 'Red / Blue' }
 
     useEffect(() => { localStorage.setItem('aaf-phantogram-settings', JSON.stringify(settings)) }, [settings])
+    useEffect(() => {
+        if (!sourceFile) {
+            setSourceUrl(old => { if (old) URL.revokeObjectURL(old); return null })
+            return
+        }
+        const next = URL.createObjectURL(sourceFile)
+        setSourceUrl(old => { if (old) URL.revokeObjectURL(old); return next })
+        setPlaneCorners(defaultPlaneCorners)
+        setActiveCorner(0)
+        return () => URL.revokeObjectURL(next)
+    }, [sourceFile])
     useEffect(() => {
         if (!ready) { setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null }); return }
         const controller = new AbortController()
@@ -60,6 +78,15 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
     }, [apiUrl, ready, sourceMode, model, modelSettings, params, setProcessingStage])
 
     const patch = (values: Partial<Settings>) => setSettings(current => ({ ...current, ...values }))
+    const setGroundPlaneCorner = (event: ReactMouseEvent<HTMLDivElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        const point: PlanePoint = [
+            Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width))),
+            Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height))),
+        ]
+        setPlaneCorners(current => current.map((item, index) => index === activeCorner ? point : item))
+        setActiveCorner(current => (current + 1) % 4)
+    }
     const setPreset = (value: string) => { if (value === '8x6') patch({ widthIn: 8, heightIn: 6 }); if (value === '10x7.5') patch({ widthIn: 10, heightIn: 7.5 }); if (value === '7x5') patch({ widthIn: 7, heightIn: 5 }) }
     const loadModel = async (file: File) => {
         setLoading(true); setError(''); setProcessingStage('uploading')
@@ -82,7 +109,7 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
                 if (!response.ok) throw new Error(`Download failed with status ${response.status}`)
                 blob = await response.blob()
             }
-            const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `phantogram-${sourceMode === 'model' ? '3d-model-' : ''}${settings.glasses}-${settings.widthIn}x${settings.heightIn}in.png`; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setProcessingStage('ready')
+            const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `phantogram-${sourceMode === 'model' ? '3d-model-' : sourceMode === 'groundplane' ? 'ground-plane-' : ''}${settings.glasses}-${settings.widthIn}x${settings.heightIn}in.png`; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setProcessingStage('ready')
         } catch (caught) { console.error(caught); setError(caught instanceof Error ? caught.message : 'Could not create the full-resolution phantogram.'); setProcessingStage('error') }
         finally { setDownloading(false) }
     }
@@ -90,9 +117,23 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
     return <main className="phantogramWorkspace">
         <section className="phantogramIntro"><div><div className="panelLabel">PHYSICAL PRINT</div><h2>Phantogram</h2><p>Projects physical 3D geometry independently from two eye positions onto a flat print plane. Build the geometry from an image + depth map, or import an actual 3D mesh.</p></div><div className="phantogramBadge">EXPERIMENTAL · GEOMETRIC</div></section>
 
-        <div className="phantogramSourceMode"><button className={sourceMode === 'relief' ? 'active' : ''} onClick={() => setSourceMode('relief')}><strong>Image + depth map</strong><span>Use the current 3D Studio source as a height field</span></button><button className={sourceMode === 'model' ? 'active' : ''} onClick={() => setSourceMode('model')}><strong>3D model</strong><span>Import GLB, OBJ, or STL geometry directly</span></button></div>
+        <div className="phantogramSourceMode"><button className={sourceMode === 'relief' ? 'active' : ''} onClick={() => setSourceMode('relief')}><strong>Image + depth map</strong><span>Use the current 3D Studio source as a height field</span></button><button className={sourceMode === 'groundplane' ? 'active' : ''} onClick={() => setSourceMode('groundplane')}><strong>Calibrated ground plane</strong><span>Mark a photographed rectangular plane and rectify it to the print</span></button><button className={sourceMode === 'model' ? 'active' : ''} onClick={() => setSourceMode('model')}><strong>3D model</strong><span>Import GLB, OBJ, or STL geometry directly</span></button></div>
 
         {sourceMode === 'relief' && !isDepthMapReady && <div className="phantogramNotice"><strong>No current source + depth map.</strong><span>Load an image in 3D Studio first. Phantogram uses that source and whichever AI or imported depth map is active.</span></div>}
+        {sourceMode === 'groundplane' && (!isDepthMapReady || !sourceFile) && <div className="phantogramNotice"><strong>Ground-plane mode needs the current image + depth map.</strong><span>Load a single image in 3D Studio, then mark the four corners of a rectangular physical plane visible in that photograph.</span></div>}
+        {sourceMode === 'groundplane' && sourceUrl && <section className="groundPlanePicker">
+            <div className="groundPlanePickerHeader"><div><span className="panelLabel">GROUND PLANE</span><strong>Mark the rectangle in perspective</strong></div><button onClick={() => { setPlaneCorners(defaultPlaneCorners); setActiveCorner(0) }}>Reset corners</button></div>
+            <p>Choose a corner number, then click its real location in the photograph. Order is 1 top-left, 2 top-right, 3 bottom-right, 4 bottom-left. The selected quadrilateral is rectified to the full print before physical eye projection.</p>
+            <div className="groundPlaneCornerButtons">{planeCorners.map((_, index) => <button key={index} className={activeCorner === index ? 'active' : ''} onClick={() => setActiveCorner(index)}>Corner {index + 1}</button>)}</div>
+            <div className="groundPlaneImage" onClick={setGroundPlaneCorner}>
+                <img src={sourceUrl} alt="Source for ground-plane selection" draggable={false}/>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <polygon points={planeCorners.map(point => `${point[0] * 100},${point[1] * 100}`).join(' ')} />
+                    {planeCorners.map((point, index) => <g key={index}><circle cx={point[0] * 100} cy={point[1] * 100} r="1.8"/><text x={point[0] * 100} y={point[1] * 100} dx="2" dy="-2">{index + 1}</text></g>)}
+                </svg>
+            </div>
+            <div className="phantogramNotice"><strong>Physical meaning</strong><span>The four marked points are assumed to be the corners of one flat rectangle. Print width and height below become that rectangle's physical dimensions.</span></div>
+        </section>}
         {sourceMode === 'model' && <div className="phantogramModelSource"><div><strong>{model ? '3D model loaded' : 'Import a 3D model'}</strong><span>{modelInfo || 'GLB 2.0, OBJ, and binary/ASCII STL are supported. GLB base-color materials are retained where available.'}</span></div><button onClick={() => modelInputRef.current?.click()}>{model ? 'Replace model' : 'Choose 3D model'}</button><input ref={modelInputRef} type="file" accept=".glb,.obj,.stl,model/gltf-binary,model/stl" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void loadModel(file) }}/></div>}
 
         <div className="phantogramGrid">
@@ -108,7 +149,7 @@ function PhantogramBuilder({ isDepthMapReady, setProcessingStage }: Props) {
                 <div className="phantogramPrintCheck"><div><strong>Print calibration</strong><span>Print the ruler first and confirm the 100 mm marks physically measure 100 mm.</span></div><a href={`${apiUrl}/phantogram/calibration?dpi=${settings.dpi}`}>Download 100 mm ruler</a></div>
             </section>
 
-            <section className="phantogramPreviewCard"><div className="phantogramPreviewHeader"><div><span className="panelLabel">PREVIEW</span><strong>{glassesLabel[settings.glasses]} · {sourceMode === 'model' ? '3D model' : 'image relief'}</strong></div><span>{loading ? 'Rendering…' : ready ? 'Ready' : 'Waiting for source'}</span></div><div className="phantogramPreview">{previewUrl ? <img src={previewUrl} alt="Phantogram preview"/> : <div><strong>Phantogram preview</strong><span>{sourceMode === 'model' ? 'Import a mesh to project it onto the print plane.' : 'The deliberately distorted print image will appear here.'}</span></div>}</div><div className="phantogramViewDiagram" aria-label="Viewing geometry diagram"><div className="eyes">● ●</div><div className="sightLines">╲ ╱</div><div className="paperLine"/><span>Lay print flat · near edge toward you</span></div>{error && <div className="phantogramError">{error}</div>}<button className="phantogramDownload" disabled={!ready || downloading} onClick={() => void download()}>{downloading ? 'Preparing full-resolution print…' : 'Download print-ready PNG'}</button><p className="phantogramFinePrint">The PNG contains physical DPI metadata. Print at <strong>100% / Actual Size</strong>, never Fit to Page. {sourceMode === 'model' ? 'Imported mesh geometry is projected directly; no depth estimation is used.' : 'The source and depth map are center-cropped together to the selected print aspect ratio.'}</p></section>
+            <section className="phantogramPreviewCard"><div className="phantogramPreviewHeader"><div><span className="panelLabel">PREVIEW</span><strong>{glassesLabel[settings.glasses]} · {sourceMode === 'model' ? '3D model' : sourceMode === 'groundplane' ? 'calibrated ground plane' : 'image relief'}</strong></div><span>{loading ? 'Rendering…' : ready ? 'Ready' : 'Waiting for source'}</span></div><div className="phantogramPreview">{previewUrl ? <img src={previewUrl} alt="Phantogram preview"/> : <div><strong>Phantogram preview</strong><span>{sourceMode === 'model' ? 'Import a mesh to project it onto the print plane.' : 'The deliberately distorted print image will appear here.'}</span></div>}</div><div className="phantogramViewDiagram" aria-label="Viewing geometry diagram"><div className="eyes">● ●</div><div className="sightLines">╲ ╱</div><div className="paperLine"/><span>Lay print flat · near edge toward you</span></div>{error && <div className="phantogramError">{error}</div>}<button className="phantogramDownload" disabled={!ready || downloading} onClick={() => void download()}>{downloading ? 'Preparing full-resolution print…' : 'Download print-ready PNG'}</button><p className="phantogramFinePrint">The PNG contains physical DPI metadata. Print at <strong>100% / Actual Size</strong>, never Fit to Page. {sourceMode === 'model' ? 'Imported mesh geometry is projected directly; no depth estimation is used.' : sourceMode === 'groundplane' ? 'The marked physical plane is perspective-rectified to the print before relief projection.' : 'The source and depth map are center-cropped together to the selected print aspect ratio.'}</p></section>
         </div>
     </main>
 }
