@@ -9,14 +9,27 @@ This file tracks ideas that are intentionally **not** part of the current implem
    - future package should bundle or bootstrap Python/Node dependencies instead of relying on the README setup
    - eventually consider signing/notarization and Intel/Apple Silicon packaging
 
-2. **Independent transparent 3D foreground layers**
-   - import a transparent PNG as a movable object over the base photograph
-   - estimate or import a separate depth map for that foreground object
-   - synthesize the layer stereoscopically as well as the base image
-   - move, scale, rotate, and position the object interactively in the composition
-   - control where the object sits in scene depth so it can appear in front of or behind existing geometry
-   - preserve alpha edges cleanly in generated left/right views and final techniques
-   - potentially support multiple independent 3D layers later
+## Layered 3D compositing — implemented core compositor
+
+The Studio now includes a **Layered 3D Composite** surface. It generates the existing base left/right scene and adds one separately synthesized foreground object:
+
+- transparent foreground image import with alpha preservation
+- optional grayscale depth map aligned to that object
+- flat-layer fallback when no foreground depth map is supplied
+- independent x/y position, scale, rotation, and opacity
+- independent stereo-depth placement in front of or behind the base plane
+- optional internal depth relief and near/far reversal
+- anaglyph using the current saved glasses/filter calibration
+- parallel, cross-eyed, and individual eye outputs
+- full-resolution PNG export
+
+Potential follow-up after real compositing use:
+
+- multiple foreground layers with reordering
+- automatic AI depth estimation for the foreground object in both hosted and fully offline local modes
+- interactive drag/rotate handles directly on the preview
+- occlusion against base-scene depth, so a foreground layer can pass behind selected base objects rather than only compositing over them
+- layer-project save/load files
 
 ## Editable depth maps — implemented core editor
 
