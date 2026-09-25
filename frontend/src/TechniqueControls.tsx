@@ -28,7 +28,15 @@ type SavedFilterProfile = {
     print: TechniqueSettings['anaglyph']['print'];
 };
 
+type ViewerProfileKind = 'cardboard' | 'stereoscope' | 'mirror';
+type SavedViewerProfile = {
+    name: string;
+    kind: ViewerProfileKind;
+    settings: TechniqueSettings[ViewerProfileKind];
+};
+
 const FILTER_PROFILE_KEY = 'aaf-filter-profiles';
+const VIEWER_PROFILE_KEY = 'aaf-viewer-profiles';
 
 const readFilterProfiles = (): SavedFilterProfile[] => {
     try {
@@ -39,10 +47,21 @@ const readFilterProfiles = (): SavedFilterProfile[] => {
     }
 };
 
+const readViewerProfiles = (): SavedViewerProfile[] => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(VIEWER_PROFILE_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.name === 'string' && ['cardboard', 'stereoscope', 'mirror'].includes(item.kind)) : [];
+    } catch {
+        return [];
+    }
+};
+
 function TechniqueControls({ technique, settings, setSettings, onApply, dirty, disabled, apiUrl, workspace }: Props) {
     const [patternStatus, setPatternStatus] = useState('');
     const [filterProfiles, setFilterProfiles] = useState<SavedFilterProfile[]>(readFilterProfiles);
     const [filterProfileName, setFilterProfileName] = useState('');
+    const [viewerProfiles, setViewerProfiles] = useState<SavedViewerProfile[]>(readViewerProfiles);
+    const [viewerProfileName, setViewerProfileName] = useState('');
     const update = <K extends keyof TechniqueSettings>(section: K, values: Partial<TechniqueSettings[K]>) => {
         setSettings({ ...settings, [section]: { ...settings[section], ...values } });
     };
@@ -126,6 +145,53 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         if (!name) return;
         persistFilterProfiles(filterProfiles.filter(item => item.name !== name));
         setFilterProfileName('');
+    };
+
+    const persistViewerProfiles = (profiles: SavedViewerProfile[]) => {
+        const sorted = [...profiles].sort((a, b) => a.name.localeCompare(b.name));
+        setViewerProfiles(sorted);
+        localStorage.setItem(VIEWER_PROFILE_KEY, JSON.stringify(sorted));
+    };
+
+    const currentViewerSettings = (kind: ViewerProfileKind): TechniqueSettings[ViewerProfileKind] => {
+        return JSON.parse(JSON.stringify(settings[kind]));
+    };
+
+    const saveViewerProfile = (kind: ViewerProfileKind) => {
+        const name = viewerProfileName.trim();
+        if (!name) return;
+        const profile: SavedViewerProfile = { name, kind, settings: currentViewerSettings(kind) };
+        const next = viewerProfiles.filter(item => !(item.kind === kind && item.name.toLowerCase() === name.toLowerCase()));
+        next.push(profile);
+        persistViewerProfiles(next);
+        setViewerProfileName(name);
+    };
+
+    const loadViewerProfile = (kind: ViewerProfileKind, name: string) => {
+        const profile = viewerProfiles.find(item => item.kind === kind && item.name === name);
+        if (!profile) return;
+        setViewerProfileName(profile.name);
+        setSettings({ ...settings, [kind]: JSON.parse(JSON.stringify(profile.settings)) });
+    };
+
+    const deleteViewerProfile = (kind: ViewerProfileKind) => {
+        const name = viewerProfileName.trim();
+        if (!name) return;
+        persistViewerProfiles(viewerProfiles.filter(item => !(item.kind === kind && item.name === name)));
+        setViewerProfileName('');
+    };
+
+    const viewerProfilePanel = (kind: ViewerProfileKind, label: string) => {
+        const profiles = viewerProfiles.filter(item => item.kind === kind);
+        return <details className="viewerProfileDetails">
+            <summary>Saved {label} profiles</summary>
+            <div className="viewerProfileBody">
+                <label><span>Saved profile</span><select value={profiles.some(item => item.name === viewerProfileName) ? viewerProfileName : ''} onChange={(event) => loadViewerProfile(kind, event.target.value)}><option value="">Choose saved profile…</option>{profiles.map(profile => <option key={profile.name} value={profile.name}>{profile.name}</option>)}</select></label>
+                <label><span>Profile name</span><input type="text" maxLength={80} placeholder="Name this physical setup" value={viewerProfileName} onChange={(event) => setViewerProfileName(event.target.value)} /></label>
+                <div><button type="button" onClick={() => saveViewerProfile(kind)} disabled={!viewerProfileName.trim()}>Save / update</button><button type="button" onClick={() => deleteViewerProfile(kind)} disabled={!profiles.some(item => item.name === viewerProfileName)}>Delete</button></div>
+                <small>Profiles save the current settings only. They do not claim the measurements are correct for a particular physical viewer until you measure or verify it.</small>
+            </div>
+        </details>;
     };
 
     const applyCardboardPreset = (preset: TechniqueSettings['cardboard']['preset']) => {
@@ -258,6 +324,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 <label><span>Image fill</span><div className="inlineRange"><input type="range" min="40" max="100" value={s.imageScale} onChange={(e) => update('cardboard', { imageScale: Number(e.target.value), preset: 'custom' })} /><strong>{s.imageScale}%</strong></div></label>
             </div>
             <p className="techniqueHint">The Cardboard starting point uses a 63 mm lens-center separation. For best alignment, enter the physical screen width and lens spacing of your viewer.</p>
+            {viewerProfilePanel('cardboard', 'phone viewer')}
         </>;
     }
 
@@ -288,6 +355,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 <label>Publisher / credit<input type="text" maxLength={120} value={s.publisher} onChange={(e) => update('stereoscope', { publisher: e.target.value })} /></label>
             </div>
             <p className="techniqueHint">The standard preset uses a white 7 × 3.5 inch card, rounded albumen-style arches, a thin photograph keyline, and period-style serif labeling. Use the dark-card button for white labeling on black.</p>
+            {viewerProfilePanel('stereoscope', 'stereoscope card')}
         </>;
     }
 
@@ -305,6 +373,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 <label className="checkField"><span>Mirror placement guide</span><div><input type="checkbox" checked={s.showGuide} onChange={(e) => update('mirror', { showGuide: e.target.checked })} /> Show center/gap guide</div></label>
             </div>
             <p className="techniqueHint">The selected reflected eye is horizontally reversed in the output so a vertical mirror restores it. Geometry is intentionally generic rather than claiming to match the DK book or another physical viewer until measured.</p>
+            {viewerProfilePanel('mirror', 'mirror viewer')}
         </>;
     }
 
