@@ -11,6 +11,7 @@ type Props = {
     dirty: boolean;
     disabled: boolean;
     apiUrl: string;
+    workspace?: string;
 };
 
 const numberValue = (value: string, fallback: number) => {
@@ -37,7 +38,7 @@ const readFilterProfiles = (): SavedFilterProfile[] => {
     }
 };
 
-function TechniqueControls({ technique, settings, setSettings, onApply, dirty, disabled, apiUrl }: Props) {
+function TechniqueControls({ technique, settings, setSettings, onApply, dirty, disabled, apiUrl, workspace }: Props) {
     const [patternStatus, setPatternStatus] = useState('');
     const [filterProfiles, setFilterProfiles] = useState<SavedFilterProfile[]>(readFilterProfiles);
     const [filterProfileName, setFilterProfileName] = useState('');
@@ -154,7 +155,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         const form = new FormData();
         form.append('file', file, file.name);
         try {
-            const response = await fetch(`${apiUrl}/pattern`, { method: 'POST', body: form, credentials: 'include' });
+            const response = await fetch(`${apiUrl}/pattern`, { method: 'POST', body: form, credentials: 'include', headers: workspace ? { 'X-AAF-Workspace': workspace } : undefined });
             if (!response.ok) throw new Error(`Pattern upload failed: ${response.status}`);
             setPatternStatus(`Custom pattern ready: ${file.name}`);
             update('autostereogram', { patternRevision: settings.autostereogram.patternRevision + 1 });

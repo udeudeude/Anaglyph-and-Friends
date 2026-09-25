@@ -25,6 +25,7 @@ const useObjectUrl = (file: File | null) => {
 function StereoPairUpload({ pair, onChange }: Props) {
     const leftInput = useRef<HTMLInputElement>(null)
     const rightInput = useRef<HTMLInputElement>(null)
+    const depthInput = useRef<HTMLInputElement>(null)
     const leftUrl = useObjectUrl(pair.left)
     const rightUrl = useObjectUrl(pair.right)
 
@@ -35,7 +36,16 @@ function StereoPairUpload({ pair, onChange }: Props) {
         onChange({ ...pair, [eye]: file })
     }
 
-    const swap = () => onChange({ left: pair.right, right: pair.left })
+    const chooseDepth = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        event.currentTarget.value = ''
+        if (!file) return
+        const supported = file.name.toLowerCase().endsWith('.npy') || file.type.startsWith('image/')
+        if (!supported) return
+        onChange({ ...pair, depth: file })
+    }
+
+    const swap = () => onChange({ ...pair, left: pair.right, right: pair.left })
 
     return <div className="stereoPairSourcePanel">
         <div className="panelLabel">SOURCE</div>
@@ -56,6 +66,7 @@ function StereoPairUpload({ pair, onChange }: Props) {
         </div>
         <input ref={leftInput} className="hiddenInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choose('left', event)} />
         <input ref={rightInput} className="hiddenInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choose('right', event)} />
+        <input ref={depthInput} className="hiddenInput" type="file" accept=".npy,image/png,image/jpeg,image/jpg,image/webp,image/tiff" onChange={chooseDepth} />
 
         <div className="pairSourceActions">
             <button onClick={() => leftInput.current?.click()}>{pair.left ? 'Replace left' : 'Choose left'}</button>
@@ -68,7 +79,12 @@ function StereoPairUpload({ pair, onChange }: Props) {
             <span>{pair.left?.name || 'Left not loaded'} · {pair.right?.name || 'Right not loaded'}</span>
         </div>
 
-        <div className="localNote"><strong>Original pair retained</strong><span>The imported files stay at their original resolution. Compatible 3D formats are rendered locally from these two images.</span></div>
+        <div className={pair.depth ? 'pairDepthSource ready' : 'pairDepthSource'}>
+            <div><strong>Optional depth map</strong><span>{pair.depth ? pair.depth.name : 'Add a map aligned to the LEFT eye to unlock depth-dependent techniques.'}</span></div>
+            <div><button onClick={() => depthInput.current?.click()}>{pair.depth ? 'Replace depth' : 'Choose depth'}</button>{pair.depth && <button onClick={() => onChange({ ...pair, depth: null })}>Remove</button>}</div>
+        </div>
+
+        <div className="localNote"><strong>Original pair retained</strong><span>The imported files stay at their original resolution. Ordinary stereo formats use the two images directly. An optional PNG/JPEG/TIFF/WebP or float32 .npy depth map can drive ChromaDepth, wiggle and autostereogram techniques from the left-eye image.</span></div>
     </div>
 }
 

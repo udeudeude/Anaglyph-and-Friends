@@ -10,3 +10,8 @@
 .pairEditorError { margin:12px 0; padding:9px 11px; border:1px solid #6b3842; border-radius:8px; color:#e49aa3; background:#26151b; font-size:9px; }
 .pairToReel { border:1px solid #3d73b4; border-radius:7px; padding:7px 10px; color:#dbeafb; background:#17375c; font-size:9px; font-weight:800; }
 @media(max-width:760px){ .pairGenericSettings { grid-template-columns:1fr; }.pairPreviewMeta { align-items:flex-start; flex-direction:column; } }
+
+.pairDepthSettings{grid-column:1/-1;display:grid;grid-template-columns:minmax(180px,.7fr) 1.3fr auto;gap:10px;align-items:end;padding:10px;border:1px solid #294865;border-radius:9px;background:#0a192b}
+.pairDepthSettings>label:not(.toggleSetting){display:grid;gap:5px;color:#7890ad;font-size:9px;font-weight:700}.pairDepthSettings select{border:1px solid #2a425f;border-radius:7px;padding:7px 8px;background:#0b1929;color:#b8cadf;font-size:9px}
+.pairDepthReady{align-self:center;padding:6px 8px;border:1px solid #5a4c2a;border-radius:999px;color:#b6a26d;background:#241e12;font-size:8px;font-weight:800;white-space:nowrap}.pairDepthReady.ready{border-color:#315f54;color:#8bc7b5;background:#10241f}
+@media(max-width:760px){.pairDepthSettings{grid-template-columns:1fr}.pairDepthReady{justify-self:start}}
