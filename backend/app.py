@@ -12,7 +12,7 @@ import numpy as np
 from anaglyph_generator import anaglyph_generator
 from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram, warp_ground_plane_to_print
-from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, load_depth_upload
+from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, apply_depth_selection, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
 from dotenv import load_dotenv
 from werkzeug.utils import send_from_directory
@@ -383,20 +383,22 @@ def depth_edit_status(history):
 def apply_depth_edit_operation(depth, operation):
     kind = str(operation.get("operation", "")).lower()
     if kind == "brush":
-        return apply_depth_brush(
+        edited = apply_depth_brush(
             depth,
             operation.get("points", []),
             radius_fraction=float(operation.get("radius", 0.03)),
             delta=float(operation.get("delta", 0.08)),
         )
+        return apply_depth_selection(depth, edited, operation.get("selection"))
     if kind == "adjust":
-        return adjust_depth_map(
+        edited = adjust_depth_map(
             depth,
             black=float(operation.get("black", 0.0)),
             white=float(operation.get("white", 1.0)),
             gamma=float(operation.get("gamma", 1.0)),
             blur_radius=float(operation.get("blur", 0.0)),
         )
+        return apply_depth_selection(depth, edited, operation.get("selection"))
     raise ValueError("Unsupported depth edit operation")
 
 
@@ -439,6 +441,21 @@ def edit_depth_map():
         if not os.path.exists(base_path):
             np.save(base_path, depth, allow_pickle=False)
 
+        selection = payload.get("selection")
+        if isinstance(selection, dict):
+            try:
+                selection = {
+                    "x0": round(max(0.0, min(1.0, float(selection.get("x0", 0.0)))), 5),
+                    "y0": round(max(0.0, min(1.0, float(selection.get("y0", 0.0)))), 5),
+                    "x1": round(max(0.0, min(1.0, float(selection.get("x1", 1.0)))), 5),
+                    "y1": round(max(0.0, min(1.0, float(selection.get("y1", 1.0)))), 5),
+                    "feather": round(max(0.0, min(0.25, float(selection.get("feather", 0.0)))), 5),
+                }
+            except (TypeError, ValueError):
+                selection = None
+        else:
+            selection = None
+
         if operation == "brush":
             points = []
             for point in payload.get("points", []):
@@ -453,6 +470,7 @@ def edit_depth_map():
                 "points": points,
                 "radius": max(0.001, min(0.25, float(payload.get("radius", 0.03)))),
                 "delta": max(-1.0, min(1.0, float(payload.get("delta", 0.08)))),
+                "selection": selection,
             }
         elif operation == "adjust":
             edit_operation = {
@@ -461,6 +479,7 @@ def edit_depth_map():
                 "white": max(0.01, min(1.0, float(payload.get("white", 1.0)))),
                 "gamma": max(0.1, min(5.0, float(payload.get("gamma", 1.0)))),
                 "blur": max(0.0, min(100.0, float(payload.get("blur", 0.0)))),
+                "selection": selection,
             }
             if edit_operation["white"] <= edit_operation["black"]:
                 return jsonify({"error": "white point must be greater than black point"}), 400
