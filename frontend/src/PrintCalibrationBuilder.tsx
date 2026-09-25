@@ -8,6 +8,17 @@ type Props = {
     setProcessingStage: (stage: ProcessingStage) => void
 }
 
+type PrintProfile = {
+    id: string
+    name: string
+    printer: string
+    paper: string
+    mediaSetting: string
+    scaleX: number
+    scaleY: number
+    notes: string
+}
+
 type CalibrationSettings = {
     pagePreset: PagePreset
     widthIn: number
@@ -19,6 +30,28 @@ type CalibrationSettings = {
     includeColor: boolean
     includeLineTests: boolean
     includeNotes: boolean
+}
+
+const EMPTY_PROFILE: PrintProfile = {
+    id: '',
+    name: '',
+    printer: '',
+    paper: '',
+    mediaSetting: '',
+    scaleX: 100,
+    scaleY: 100,
+    notes: '',
+}
+
+const PRINT_PROFILE_KEY = 'aaf-print-profiles'
+
+const readProfiles = (): PrintProfile[] => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(PRINT_PROFILE_KEY) || '[]')
+        return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.name === 'string') : []
+    } catch {
+        return []
+    }
 }
 
 const DEFAULTS: CalibrationSettings = {
@@ -92,6 +125,8 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
     })
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
+    const [profiles, setProfiles] = useState<PrintProfile[]>(readProfiles)
+    const [profile, setProfile] = useState<PrintProfile>(EMPTY_PROFILE)
 
     useEffect(() => {
         localStorage.setItem('aaf-print-calibration-settings', JSON.stringify(settings))
@@ -100,6 +135,43 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
     useEffect(() => () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl)
     }, [previewUrl])
+
+    const persistProfiles = (next: PrintProfile[]) => {
+        const sorted = [...next].sort((a, b) => a.name.localeCompare(b.name))
+        setProfiles(sorted)
+        localStorage.setItem(PRINT_PROFILE_KEY, JSON.stringify(sorted))
+    }
+
+    const loadProfile = (id: string) => {
+        const found = profiles.find(item => item.id === id)
+        setProfile(found ? { ...found } : EMPTY_PROFILE)
+    }
+
+    const saveProfile = () => {
+        const name = profile.name.trim()
+        if (!name) return
+        const id = profile.id || `print-${Date.now()}`
+        const saved = { ...profile, id, name }
+        persistProfiles([...profiles.filter(item => item.id !== id), saved])
+        setProfile(saved)
+    }
+
+    const deleteProfile = () => {
+        if (!profile.id) return
+        persistProfiles(profiles.filter(item => item.id !== profile.id))
+        setProfile(EMPTY_PROFILE)
+    }
+
+    const downloadSetupJson = () => {
+        const payload = {
+            format: 'Anaglyph & Friends print setup',
+            version: 1,
+            calibrationSheet: settings,
+            printProfile: profile.name.trim() ? profile : null,
+            instructions: 'Print generated calibration artwork at 100% / Actual Size with automatic fitting disabled.',
+        }
+        downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), 'anaglyph-friends-print-setup.json')
+    }
 
     const pageLabel = useMemo(() => {
         if (settings.pagePreset === 'letter') return 'US Letter · 8.5 × 11 in'
@@ -153,6 +225,10 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
         text('Print Calibration Sheet', margin, y, 18, 800)
         text(pageLabel, width - margin, y, 8, 650, 'right')
         y += pt(14, dpi)
+        if (profile.name.trim()) {
+            text(`Profile: ${profile.name}${profile.printer ? ` · ${profile.printer}` : ''}${profile.paper ? ` · ${profile.paper}` : ''}`, margin, y, 6.5, 600)
+            y += pt(11, dpi)
+        }
         text('Print at 100% / Actual Size. Disable Fit to Page, Shrink, Scale to Fit, and borderless expansion.', margin, y, 7.5, 600)
         y += pt(14, dpi)
         rule(y)
@@ -438,6 +514,23 @@ function PrintCalibrationBuilder({ setProcessingStage }: Props) {
                         ['includeNotes', 'Measurement notes area'],
                     ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={settings[key]} onChange={(event) => setSettings(current => ({ ...current, [key]: event.target.checked }))} /> {label}</label>)}
                 </div>
+
+                <details className="printProfileDetails">
+                    <summary>Saved printer / paper profiles</summary>
+                    <div className="printProfileBody">
+                        <label className="profileChooser"><span>Saved profile</span><select value={profile.id} onChange={(event) => loadProfile(event.target.value)}><option value="">New / none</option>{profiles.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                        <div className="printProfileGrid">
+                            <label><span>Profile name</span><input value={profile.name} placeholder="e.g. Home inkjet · matte paper" onChange={(event) => setProfile(current => ({ ...current, name: event.target.value }))} /></label>
+                            <label><span>Printer</span><input value={profile.printer} placeholder="Model" onChange={(event) => setProfile(current => ({ ...current, printer: event.target.value }))} /></label>
+                            <label><span>Paper / material</span><input value={profile.paper} placeholder="Paper, transparency, film…" onChange={(event) => setProfile(current => ({ ...current, paper: event.target.value }))} /></label>
+                            <label><span>Driver / media setting</span><input value={profile.mediaSetting} placeholder="Photo, matte, best quality…" onChange={(event) => setProfile(current => ({ ...current, mediaSetting: event.target.value }))} /></label>
+                            <label><span>Measured X scale</span><input type="number" min="90" max="110" step=".01" value={profile.scaleX} onChange={(event) => setProfile(current => ({ ...current, scaleX: Number(event.target.value) }))} /><small>%</small></label>
+                            <label><span>Measured Y scale</span><input type="number" min="90" max="110" step=".01" value={profile.scaleY} onChange={(event) => setProfile(current => ({ ...current, scaleY: Number(event.target.value) }))} /><small>%</small></label>
+                        </div>
+                        <label className="profileNotes"><span>Notes</span><textarea rows={3} value={profile.notes} placeholder="Leave measurements blank/default until you have a real print." onChange={(event) => setProfile(current => ({ ...current, notes: event.target.value }))} /></label>
+                        <div className="printProfileActions"><button type="button" onClick={saveProfile} disabled={!profile.name.trim()}>Save / update profile</button><button type="button" onClick={deleteProfile} disabled={!profile.id}>Delete profile</button><button type="button" onClick={downloadSetupJson}>Download setup JSON</button></div>
+                    </div>
+                </details>
 
                 <button className="resetPrintDefaults" type="button" onClick={() => setSettings(DEFAULTS)}>Reset standard defaults</button>
             </div>
