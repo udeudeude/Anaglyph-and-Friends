@@ -86,6 +86,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             if (!response.ok) throw new Error(info.error || `Browser AI depth import failed: ${response.status}`);
             setDepthSource('ai');
             setDepthSourceMeta(`Depth Anything V2 · ${generated.engine} · runs on this device`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error('Browser depth estimation failed', error);
@@ -120,6 +124,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             }
             setDepthSource(source);
             setDepthSourceMeta(source === 'ai' ? 'Depth Anything V2 estimation' : `Imported map · ${mode === 'crop' ? 'crop to fill' : mode === 'fit' ? 'fit inside' : 'stretch to image'}`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error(error);
@@ -148,6 +156,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setHasImportedDepth(true);
             setDepthSource('imported');
             setDepthSourceMeta(`${info.depth_width} × ${info.depth_height} imported → ${info.source_width} × ${info.source_height} source · ${depthFit === 'crop' ? 'crop to fill' : depthFit === 'fit' ? 'fit inside' : 'stretch'}`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error(error);
