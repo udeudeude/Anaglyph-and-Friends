@@ -14,6 +14,7 @@ from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram
 from depth_sources import align_depth, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from werkzeug.utils import send_from_directory
 
@@ -42,23 +43,8 @@ def hello_world():
     return "Anaglyph & Friends backend"
 
 
-@app.route("/healthz")
-def healthz():
-    return "ok", 200
-
-
-last_cleanup_at = 0.0
-
-
 @app.before_request
 def assign_session_id():
-    global last_cleanup_at
-    if request.endpoint == "healthz":
-        return
-    current_time = time.time()
-    if current_time - last_cleanup_at > 60 * 60:
-        clear_old_session_files()
-        last_cleanup_at = current_time
     if "session_id" not in session:
         session["session_id"] = str(uuid.uuid4())
 
@@ -106,6 +92,10 @@ def clear_old_session_files():
             session_files_cleared += 1
     print(f"Session files cleared: {session_files_cleared}")
 
+
+clean_up_scheduler = BackgroundScheduler()
+clean_up_scheduler.add_job(clear_old_session_files, "interval", hours=1)
+clean_up_scheduler.start()
 
 
 def parse_render_parameters():
@@ -444,7 +434,7 @@ def prepare_full_stereo():
         return jsonify({"error": str(e)}), 400
 
 
-def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, anaglyph_type="red-cyan", anaglyph_color="full"):
+def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, anaglyph_type="red-cyan", anaglyph_color="full", anaglyph_left_color="#ff0000", anaglyph_right_color="#00ffff", anaglyph_left_gain=100.0, anaglyph_right_gain=100.0):
     left_image, right_image = stereo_arrays(scope, pop_out, strength, swap_eyes)
 
     if kind == "left":
@@ -458,7 +448,7 @@ def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, ana
     if kind == "anaglyph":
         if optimised and anaglyph_type == "red-cyan" and anaglyph_color == "full":
             return anaglyph_generator.generate_optimised_RR_anaglyph(left_image, right_image)
-        return make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color)
+        return make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
     if kind in {"topbottom", "halfsbs", "rowinterlaced", "columninterlaced", "checkerboard"}:
         return compatibility_stereo(left_image, right_image, kind)
     raise ValueError("Unknown stereo output kind")
@@ -473,12 +463,16 @@ def get_output(kind):
         swap_eyes = parse_swap_eyes()
         anaglyph_type = request.args.get("anaglyph_type", "red-cyan").lower()
         anaglyph_color = request.args.get("anaglyph_color", "full").lower()
+        anaglyph_left_color = request.args.get("anaglyph_left_color", "#ff0000")
+        anaglyph_right_color = request.args.get("anaglyph_right_color", "#00ffff")
+        anaglyph_left_gain = float(request.args.get("anaglyph_left_gain", 100))
+        anaglyph_right_gain = float(request.args.get("anaglyph_right_gain", 100))
         output_format = request.args.get("format", "jpeg").lower()
         quality = int(request.args.get("quality", 95))
         download = request.args.get("download", "false").lower() == "true"
         if output_format not in ("jpeg", "jpg", "png"):
             return jsonify({"error": "format must be jpeg or png"}), 400
-        output = build_output(kind.lower(), scope, pop_out, strength, optimised, swap_eyes, anaglyph_type, anaglyph_color)
+        output = build_output(kind.lower(), scope, pop_out, strength, optimised, swap_eyes, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
         names = {
             "anaglyph": f"{anaglyph_type}-anaglyph",
             "parallel": "parallel-stereo",
