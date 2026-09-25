@@ -113,7 +113,6 @@ Still to validate/refine with a physical reel and viewer:
 ## Potential future viewing / export techniques
 
 - **MPO / stereo JPEG** for devices and software that store both eye views in one file.
-- **Pulfrich animation** using generated horizontal motion for dark-filter Pulfrich viewing.
 - **Additional autostereoscopic display profiles** when a specific display/panel is available for calibration.
 - **Additional historical stereograph templates**, typography, backs, publisher marks, numbering, and batch card generation.
 - **Additional phone/viewer profiles** with saved device dimensions and optional lens-distortion correction.
@@ -139,6 +138,7 @@ The current application includes:
 - traditional stereoscope cards with arched images and text
 - generic single-mirror stereoscope layouts
 - wiggle-grams
+- Pulfrich motion-depth animation for one-eye neutral-density viewing
 - random-dot autostereograms
 - pattern-based autostereograms
 - lenticular 3D interlacing plus printable LPI calibration bars

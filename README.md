@@ -287,6 +287,11 @@ The current code intentionally leaves physical calibration items explicit rather
   - multiple synthesized virtual viewpoints rather than simple left/right alternation
   - configurable viewpoint count and frame timing
   - looping GIF output
+- **Pulfrich Motion 3D**
+  - smooth horizontal depth-dependent motion generated from the active depth map
+  - intended for a neutral-density / dark filter over one eye
+  - configurable darkened eye, motion depth, frame count, and timing
+  - looping GIF output
 
 ### Compositing and color-filter layered artwork
 
@@ -473,6 +478,7 @@ Technique renderers:
 - `GET /special/stereoscope`
 - `GET /special/mirror-stereoscope`
 - `GET /special/wiggle`
+- `GET /special/pulfrich`
 - `GET /special/autostereogram?style=random|pattern`
 - `GET /special/lenticular`
 - `GET /lenticular/calibration`

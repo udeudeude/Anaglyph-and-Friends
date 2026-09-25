@@ -6,7 +6,7 @@ import { renderStereoPairOutput, type PairTechnique } from './stereoPairRender'
 import './styles/StereoPairEditor.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
-type DepthPairTechnique = 'chromadepth' | 'wiggle' | 'randomdot' | 'pattern'
+type DepthPairTechnique = 'chromadepth' | 'wiggle' | 'pulfrich' | 'randomdot' | 'pattern'
 type PairStudioTechnique = PairTechnique | DepthPairTechnique
 type DepthFit = 'crop' | 'fit' | 'stretch'
 
@@ -19,10 +19,10 @@ type Props = {
 const supported = new Set<PairStudioTechnique>([
     'anaglyph', 'parallel', 'cross', 'cardboard', 'stereoscope', 'mirror', 'lenticular',
     'topbottom', 'halfsbs', 'rowinterlaced', 'columninterlaced', 'checkerboard',
-    'chromadepth', 'wiggle', 'randomdot', 'pattern',
+    'chromadepth', 'wiggle', 'pulfrich', 'randomdot', 'pattern',
 ])
-const depthTechniques = new Set<DepthPairTechnique>(['chromadepth', 'wiggle', 'randomdot', 'pattern'])
-const settingsTechniques = new Set<PairStudioTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular', 'chromadepth', 'wiggle', 'randomdot', 'pattern'])
+const depthTechniques = new Set<DepthPairTechnique>(['chromadepth', 'wiggle', 'pulfrich', 'randomdot', 'pattern'])
+const settingsTechniques = new Set<PairStudioTechnique>(['anaglyph', 'cardboard', 'stereoscope', 'mirror', 'lenticular', 'chromadepth', 'wiggle', 'pulfrich', 'randomdot', 'pattern'])
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings))
 
 function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Props) {
@@ -50,7 +50,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings)
     const info = techniqueInfo[activeTechnique]
     const fixedPng = activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular'
-    const fixedGif = activeTechnique === 'wiggle'
+    const fixedGif = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich'
 
     useEffect(() => {
         localStorage.setItem('aaf-technique-settings', JSON.stringify(draftSettings))
@@ -118,6 +118,10 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
             const s = appliedSettings.wiggle
             return `${apiUrl}/special/wiggle?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration)}).toString()}`
         }
+        if (technique === 'pulfrich') {
+            const s = appliedSettings.pulfrich
+            return `${apiUrl}/special/pulfrich?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration), strength: String(s.strength), dark_eye: s.darkEye}).toString()}`
+        }
         const s = appliedSettings.autostereogram
         return `${apiUrl}/special/autostereogram?${new URLSearchParams({...base, style: technique === 'pattern' ? 'pattern' : 'random', separation: String(s.separation), depth_strength: String(s.depthStrength), dot_size: String(s.dotSize), viewing: s.viewing, guides: String(s.guides), color: String(s.color), revision: String(s.patternRevision)}).toString()}`
     }
@@ -182,10 +186,10 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         try {
             const depthBased = depthTechniques.has(activeTechnique as DepthPairTechnique)
             if (depthBased && !depthReady) throw new Error('Optional depth map is not ready yet.')
-            const format = activeTechnique === 'wiggle' ? 'gif' : fixedPng ? 'png' : downloadFormat
+            const format = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'gif' : fixedPng ? 'png' : downloadFormat
             let blob: Blob
             if (depthBased) {
-                const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, activeTechnique === 'wiggle' ? 'preview' : 'full'), {
+                const response = await fetch(depthSpecialUrl(activeTechnique as DepthPairTechnique, activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'preview' : 'full'), {
                     credentials: 'include',
                     headers: { 'X-AAF-Workspace': depthWorkspace },
                 })
@@ -246,6 +250,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         if (activeTechnique === 'mirror') return 'One imported eye is horizontally reversed and placed across a configurable center mirror gap for single-mirror viewing.'
         if (activeTechnique === 'chromadepth') return 'Uses the optional depth map with the LEFT-eye image to encode depth as spectral color.'
         if (activeTechnique === 'wiggle') return 'Uses the optional depth map with the LEFT-eye image to synthesize additional virtual viewpoints.'
+        if (activeTechnique === 'pulfrich') return 'Uses the optional depth map with the LEFT-eye image to create depth-dependent horizontal motion for one-eye neutral-density Pulfrich viewing.'
         if (activeTechnique === 'randomdot' || activeTechnique === 'pattern') return 'Uses the optional depth map to generate an autostereogram; the imported right-eye image is not needed for this output.'
         return 'The supplied left and right images are used directly. No depth map or AI-generated second eye is involved.'
     }, [activeTechnique])
@@ -267,7 +272,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
                 <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
                 <optgroup label="Print"><option value="lenticular">Lenticular 3D · two-view</option></optgroup>
                 <optgroup label="Display & compatibility"><option value="halfsbs">Half-Width Side-by-Side</option><option value="topbottom">Top / Bottom Stereo</option><option value="rowinterlaced">Row-Interlaced</option><option value="columninterlaced">Column-Interlaced</option><option value="checkerboard">Checkerboard Stereo</option></optgroup>
-                <optgroup label={pair.depth ? 'Optional depth map techniques' : 'Add optional depth map to unlock'}><option value="chromadepth" disabled={!pair.depth}>ChromaDepth</option><option value="wiggle" disabled={!pair.depth}>Wiggle-gram multi-view</option><option value="randomdot" disabled={!pair.depth}>Random-Dot Stereogram</option><option value="pattern" disabled={!pair.depth}>Pattern Stereogram</option><option disabled>Phantogram · use single-image Studio</option></optgroup>
+                <optgroup label={pair.depth ? 'Optional depth map techniques' : 'Add optional depth map to unlock'}><option value="chromadepth" disabled={!pair.depth}>ChromaDepth</option><option value="wiggle" disabled={!pair.depth}>Wiggle-gram multi-view</option><option value="pulfrich" disabled={!pair.depth}>Pulfrich Motion 3D</option><option value="randomdot" disabled={!pair.depth}>Random-Dot Stereogram</option><option value="pattern" disabled={!pair.depth}>Pattern Stereogram</option><option disabled>Phantogram · use single-image Studio</option></optgroup>
             </select>
         </div>
 

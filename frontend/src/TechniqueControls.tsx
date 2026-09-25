@@ -319,6 +319,25 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
         </>;
     }
 
+    if (technique === 'pulfrich') {
+        const s = settings.pulfrich;
+        const fps = (1000 / Math.max(1, s.duration)).toFixed(1);
+        const cycle = (s.frames * s.duration / 1000).toFixed(2);
+        body = <>
+            <div className="techniqueGrid two">
+                <label><span>Darkened eye</span><select value={s.darkEye} onChange={(e) => update('pulfrich', { darkEye: e.target.value as typeof s.darkEye })}><option value="right">Right eye</option><option value="left">Left eye</option></select></label>
+                <label><span>Motion depth</span><div className="inlineRange"><input type="range" min="0.2" max="6" step="0.1" value={s.strength} onChange={(e) => update('pulfrich', { strength: Number(e.target.value) })} /><strong>{s.strength.toFixed(1)}%</strong></div></label>
+                <label><span>Frames per cycle</span><input type="number" min="6" max="30" value={s.frames} onChange={(e) => update('pulfrich', { frames: numberValue(e.target.value, 16) })} /><small>smooth horizontal oscillation</small></label>
+                <label><span>Frame time</span><input type="number" min="35" max="250" step="5" value={s.duration} onChange={(e) => update('pulfrich', { duration: numberValue(e.target.value, 70) })} /><small>ms · about {fps} fps</small></label>
+            </div>
+            <div className="calibrationBox">
+                <div><strong>Viewing setup</strong><span>Use a neutral-density / dark filter over the selected eye and keep your head level. The animation should move smoothly side to side; the delayed darkened eye converts that motion into an apparent depth offset.</span></div>
+                <strong className="printWarning">NOT AN ANAGLYPH FILTER. Use a gray/dark neutral-density filter over one eye only.</strong>
+            </div>
+            <p className="techniqueHint">Current cycle: about {cycle} seconds. If the depth appears reversed, switch which eye is darkened. Stronger motion can increase the effect but also increases edge distortion.</p>
+        </>;
+    }
+
     if (technique === 'randomdot' || technique === 'pattern') {
         const s = settings.autostereogram;
         body = <>
