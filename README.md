@@ -225,20 +225,23 @@ Both editions can also use an imported depth map or an imported left/right stere
 
 ## Known validation / roadmap
 
-The current code intentionally leaves a few things pending rather than pretending uncertain physical details are exact:
+The hosted architecture has now been exercised with repeated real use after removing server-side PyTorch from the Render build. GitHub also builds and starts the same production Docker image, checks its lightweight health endpoint, and verifies that the compiled frontend is served before changes reach Render.
 
-- **Render stability:** verify the lightweight hosted build stays below the free instance memory limit during repeated real use.
-- **Color-filter calibration:** arbitrary two-color anaglyph screen/print profiles and the RGB-reveal/CMY-layer workspace are implemented on a separate validated branch, pending merge after hosted stability is confirmed.
-- **View-Master physical geometry:** reel/frame/transport dimensions are still labeled prototype until checked against a real reel with measurements.
-- **Single-mirror stereoscope layout:** the DK-style mirror-viewing output discussed during development is not implemented yet; it needs a generic layout first, then optional real-book measurements.
-- **Polarized projection:** software alignment, crosstalk tests, linear/circular choices, and projector exports are implemented, but real two-projector/filter/silver-screen testing remains hardware-dependent.
+The current code intentionally leaves physical calibration items explicit rather than pretending uncertain real-world measurements are exact:
+
+- **View-Master physical geometry:** reel/frame/transport dimensions remain labeled prototype until checked against a real reel and viewer.
+- **Single-mirror stereoscope:** the generic software layout is implemented; an exact DK/book preset still requires measurements from the real object.
+- **Polarized projection:** software alignment, crosstalk tests, linear/circular choices, independent projector windows, and projector exports are implemented, but real two-projector/filter/silver-screen testing remains hardware-dependent.
 - **Physical color-filter calibration:** exact screen and print profiles require the actual glasses/filters, display, printer, ink, paper, and illumination.
+- **Lenticular and phantogram calibration:** final physical defaults still depend on real printer/material/viewer tests.
 
 ## Current techniques
 
 ### Direct stereo / glasses
 
-- **Red/cyan anaglyph**
+- **Anaglyph**, including red/cyan, red/green, red/blue, and arbitrary two-color filter calibration
+  - separate screen and print calibration values
+  - saved named glasses/filter profiles stored in the browser
 - **Parallel stereo**
 - **Cross-eyed stereo**
 - **ChromaDepth**, with depth-coded spectral color while retaining image brightness
@@ -254,6 +257,12 @@ The current code intentionally leaves a few things pending rather than pretendin
   - traditional arched photograph tops
   - configurable print DPI, card/image dimensions, spacing, mount color, and arch depth
   - title, caption, and publisher/credit text rendered directly onto the card
+- **Single-mirror stereoscope**
+  - configurable card and image dimensions
+  - configurable mirror gap and reflected eye
+  - reflected eye is horizontally reversed for mirror restoration
+  - optional mirror-placement guide
+  - intentionally generic until a specific physical viewer/book is measured
 
 ### Autostereograms
 
@@ -271,6 +280,15 @@ The current code intentionally leaves a few things pending rather than pretendin
   - multiple synthesized virtual viewpoints rather than simple left/right alternation
   - configurable viewpoint count and frame timing
   - looping GIF output
+
+### Color-filter layered artwork
+
+- **RGB Reveal / CMY Layers**
+  - combine three independent source images as cyan, magenta, and yellow separations
+  - red-, green-, and blue-filter simulations
+  - independent layer strength
+  - full-resolution composite and separation proof downloads
+  - intended for Carnovsky-family color-filter artwork rather than stereo
 
 ### Physical print techniques
 
@@ -305,6 +323,7 @@ Device- and print-specific information is deliberately hidden until that techniq
 The local frontend is a dark desktop-style workspace with:
 
 - top-level **3D Studio**, **View-Master Reel**, and **Polarized Projection** workspaces;
+- dual-projector presentation windows that can be moved to separate displays and independently fullscreened;
 - **Phantogram** lives under **More techniques -> Print** inside 3D Studio;
 - drag-and-drop, file-picker, and clipboard-paste image loading;
 - full-resolution source retention;
@@ -432,6 +451,7 @@ Technique renderers:
 - `GET /special/chromadepth`
 - `GET /special/cardboard`
 - `GET /special/stereoscope`
+- `GET /special/mirror-stereoscope`
 - `GET /special/wiggle`
 - `GET /special/autostereogram?style=random|pattern`
 - `GET /special/lenticular`
