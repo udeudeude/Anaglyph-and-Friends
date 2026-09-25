@@ -41,6 +41,7 @@ The active AI or imported depth source can now be corrected without flattening i
 - gamma adjustment
 - Gaussian blur
 - reset to the pre-edit active map
+- multi-step undo/redo using a compact operation history rather than duplicating full-resolution depth maps
 - edits remain float32 internally and feed all downstream 3D techniques and high-bit-depth downloads
 
 Potential follow-up after real editing use:
@@ -48,7 +49,6 @@ Potential follow-up after real editing use:
 - polygon/lasso masks and selection feathering
 - edge-aware smoothing
 - clone/fill tools
-- undo/redo history beyond the current whole-session reset
 - split-view source/depth comparison at large scale
 
 ## Phantogram workspace — experimental implementation

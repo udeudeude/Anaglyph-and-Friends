@@ -60,3 +60,8 @@
 .depthEditActions button{border:1px solid #31557d;border-radius:7px;padding:7px;background:#10233a;color:#9fb9d7;font-size:9px;font-weight:750}
 .depthEditActions button:disabled{opacity:.45}
 @media(max-width:820px){.depthEditorControls{grid-column:1/-1}.depthBrushRow,.depthAdjustGrid{grid-template-columns:1fr 1fr}}
+
+.depthHistoryActions{display:grid;grid-template-columns:auto auto 1fr;gap:6px;align-items:center}
+.depthHistoryActions button{border:1px solid #31557d;border-radius:7px;padding:7px 10px;background:#10233a;color:#a8c1dc;font-size:9px;font-weight:800}
+.depthHistoryActions button:disabled{opacity:.38}
+.depthHistoryActions span{justify-self:end;color:#5f7895;font-size:8px}

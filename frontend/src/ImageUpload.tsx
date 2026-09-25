@@ -39,6 +39,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [editWhite, setEditWhite] = useState(100);
     const [editGamma, setEditGamma] = useState(1);
     const [editBlur, setEditBlur] = useState(0);
+    const [canUndoDepth, setCanUndoDepth] = useState(false);
+    const [canRedoDepth, setCanRedoDepth] = useState(false);
+    const [depthHistoryPosition, setDepthHistoryPosition] = useState(0);
+    const [depthHistoryCount, setDepthHistoryCount] = useState(0);
     const strokePointsRef = useRef<Array<{x: number; y: number}>>([]);
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const useBrowserDepth = hostedBrowserDepthEnabled();
@@ -82,6 +86,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             if (!response.ok) throw new Error(info.error || `Browser AI depth import failed: ${response.status}`);
             setDepthSource('ai');
             setDepthSourceMeta(`Depth Anything V2 · ${generated.engine} · runs on this device`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error('Browser depth estimation failed', error);
@@ -116,6 +124,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             }
             setDepthSource(source);
             setDepthSourceMeta(source === 'ai' ? 'Depth Anything V2 estimation' : `Imported map · ${mode === 'crop' ? 'crop to fill' : mode === 'fit' ? 'fit inside' : 'stretch to image'}`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error(error);
@@ -144,6 +156,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setHasImportedDepth(true);
             setDepthSource('imported');
             setDepthSourceMeta(`${info.depth_width} × ${info.depth_height} imported → ${info.source_width} × ${info.source_height} source · ${depthFit === 'crop' ? 'crop to fill' : depthFit === 'fit' ? 'fit inside' : 'stretch'}`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
             console.error(error);
@@ -171,6 +187,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             });
             const info = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(info.error || `Depth edit failed: ${response.status}`);
+            setCanUndoDepth(Boolean(info.can_undo));
+            setCanRedoDepth(Boolean(info.can_redo));
+            setDepthHistoryPosition(Number(info.history_position) || 0);
+            setDepthHistoryCount(Number(info.history_count) || 0);
             await refreshEditedDepth();
         } catch (error) {
             console.error(error);
@@ -179,6 +199,29 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setIsChangeAllowed(true);
         }
     };
+
+    const fetchDepthEditStatus = async () => {
+        try {
+            const response = await fetch(`${apiUrl}/depth-map/edit`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ operation: 'status' }),
+            });
+            const info = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(info.error || `Depth edit status failed: ${response.status}`);
+            setCanUndoDepth(Boolean(info.can_undo));
+            setCanRedoDepth(Boolean(info.can_redo));
+            setDepthHistoryPosition(Number(info.history_position) || 0);
+            setDepthHistoryCount(Number(info.history_count) || 0);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
+        if (depthEditing && depthMapUrl) void fetchDepthEditStatus();
+    }, [depthEditing, depthMapUrl]);
 
     const normalizedPointer = (event: ReactPointerEvent<HTMLElement>) => {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -257,6 +300,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         setEditWhite(100);
         setEditGamma(1);
         setEditBlur(0);
+        setCanUndoDepth(false);
+        setCanRedoDepth(false);
+        setDepthHistoryPosition(0);
+        setDepthHistoryCount(0);
 
         const megabytes = file.size / (1024 * 1024);
         setSourceMeta(`${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB · original retained`);
@@ -418,7 +465,8 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                     <label><span>Gamma</span><input type="number" min="0.1" max="5" step="0.05" value={editGamma} onChange={(e) => setEditGamma(Number(e.target.value))} /></label>
                     <label><span>Blur</span><input type="number" min="0" max="100" step="0.5" value={editBlur} onChange={(e) => setEditBlur(Number(e.target.value))} /><small>px</small></label>
                 </div>
-                <div className="depthEditActions"><button onClick={applyDepthAdjustments} disabled={!isChangeAllowed || editWhite <= editBlack}>Apply levels / blur</button><button onClick={resetDepthEdits} disabled={!isChangeAllowed}>Reset depth edits</button></div>
+                {depthEditing && <div className="depthHistoryActions"><button onClick={() => void postDepthEdit({ operation: 'undo' })} disabled={!isChangeAllowed || !canUndoDepth}>Undo</button><button onClick={() => void postDepthEdit({ operation: 'redo' })} disabled={!isChangeAllowed || !canRedoDepth}>Redo</button><span>{depthHistoryCount ? `${depthHistoryPosition} / ${depthHistoryCount} edits` : 'No edits yet'}</span></div>}
+                <div className="depthEditActions"><button onClick={applyDepthAdjustments} disabled={!isChangeAllowed || editWhite <= editBlack}>Apply levels / blur</button><button onClick={resetDepthEdits} disabled={!isChangeAllowed || (!canUndoDepth && depthHistoryPosition === 0)}>Reset depth edits</button></div>
             </div>}
 
             {imageUrl && <div className="depthSourceControls">

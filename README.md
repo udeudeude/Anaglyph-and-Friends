@@ -416,7 +416,7 @@ The source sidebar exposes:
 - **16-bit depth PNG**: full source dimensions, normalized 0-65535 depth values;
 - **Raw float32**: normalized depth in NumPy `.npy` format;
 - **Color map**: the colored visualization used by the interface;
-- **Editable depth controls**: paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, or reset the edit session.
+- **Editable depth controls**: paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, undo/redo individual edit steps, or reset the edit session.
 
 Depth edits are applied to the underlying float32 map on the backend, not to the 8-bit color preview, so later downloads and 3D techniques use the edited high-precision data. The float32/16-bit products remain preferable to the colored visualization for external image-processing work.
 
