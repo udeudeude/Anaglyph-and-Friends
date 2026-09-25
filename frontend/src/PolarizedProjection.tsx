@@ -33,6 +33,7 @@ function PolarizedProjection({ pair, generatedPairAvailable, setProcessingStage 
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const leftStage = useRef<HTMLDivElement>(null), rightStage = useRef<HTMLDivElement>(null)
+    const leftWindow = useRef<Window | null>(null), rightWindow = useRef<Window | null>(null)
 
     const importedReady = !!pair?.left && !!pair?.right
     const ready = importedReady || generatedPairAvailable
@@ -75,6 +76,56 @@ function PolarizedProjection({ pair, generatedPairAvailable, setProcessingStage 
         : (circularPreset === 'left/right' ? ['Left-circular', 'Right-circular'] : ['Right-circular', 'Left-circular'])
 
     const stageTransform = (align: Align) => ({ transform: `translate(${align.x}px, ${align.y}px) rotate(${align.rotation}deg) scale(${align.scale / 100}) skew(${align.keystoneX}deg, ${align.keystoneY}deg)`, filter: `brightness(${align.brightness}%)` })
+
+    const popupTransform = (align: Align) => `translate(${align.x}px, ${align.y}px) rotate(${align.rotation}deg) scale(${align.scale / 100}) skew(${align.keystoneX}deg, ${align.keystoneY}deg)`
+
+    const updateProjectorWindow = (popup: Window | null, eye: 'left' | 'right') => {
+        if (!popup || popup.closed) return
+        const url = eye === 'left' ? physicalLeft : physicalRight
+        const align = eye === 'left' ? leftAlign : rightAlign
+        const label = eye === 'left' ? 'PROJECTOR A' : 'PROJECTOR B'
+        const leakageClass = eye === 'left' ? 'light' : 'dark'
+        const content = mode === 'grid'
+            ? `<div class="grid content"><span>${label}</span></div>`
+            : mode === 'leakage'
+                ? `<div class="leakage ${leakageClass} content"><strong>${eye === 'left' ? 'L' : 'R'}</strong><span>View through the opposite eye: this should be as dark as possible.</span></div>`
+                : url
+                    ? `<img class="content" src="${url}" alt="${label}">`
+                    : '<div class="empty">Stereo pair required</div>'
+        popup.document.open()
+        popup.document.write(`<!doctype html><html><head><title>${label}</title><style>
+            html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,sans-serif}
+            body{display:grid;place-items:center}
+            .content{transform:${popupTransform(align)};filter:brightness(${align.brightness}%);transform-origin:center}
+            img.content{max-width:100vw;max-height:100vh;object-fit:contain}
+            .grid{position:absolute;inset:4%;background-image:linear-gradient(#fff5 1px,transparent 1px),linear-gradient(90deg,#fff5 1px,transparent 1px);background-size:10% 10%;border:2px solid #fff}
+            .grid:before,.grid:after{content:"";position:absolute;background:#fff}.grid:before{left:50%;top:0;bottom:0;width:1px}.grid:after{top:50%;left:0;right:0;height:1px}
+            .grid span{position:absolute;left:12px;top:10px;font-size:14px;font-weight:700}
+            .leakage{position:absolute;inset:0;display:grid;place-content:center;text-align:center}.leakage.light{background:#fff;color:#000}.leakage.dark{background:#000;color:#fff}
+            .leakage strong{font-size:min(28vw,220px)}.leakage span{font-size:14px;max-width:420px}
+            .empty{color:#789}
+            button{position:fixed;right:12px;bottom:12px;z-index:5;padding:9px 12px;border:1px solid #6686a8;border-radius:7px;background:#0b1a2bdd;color:#fff}
+        </style></head><body>${content}<button onclick="document.documentElement.requestFullscreen()">Fullscreen this projector</button></body></html>`)
+        popup.document.close()
+    }
+
+    const openProjectorWindow = (eye: 'left' | 'right') => {
+        const ref = eye === 'left' ? leftWindow : rightWindow
+        const name = eye === 'left' ? 'aaf-projector-a' : 'aaf-projector-b'
+        const popup = ref.current && !ref.current.closed ? ref.current : window.open('', name, 'popup=yes,width=1280,height=720')
+        if (!popup) {
+            setError('The browser blocked the projector window. Allow pop-ups for this site and try again.')
+            return
+        }
+        ref.current = popup
+        updateProjectorWindow(popup, eye)
+        popup.focus()
+    }
+
+    useEffect(() => {
+        updateProjectorWindow(leftWindow.current, 'left')
+        updateProjectorWindow(rightWindow.current, 'right')
+    }, [physicalLeft, physicalRight, leftAlign, rightAlign, mode])
 
     const renderContent = (eye: 'left' | 'right', url: string | null, align: Align) => {
         if (mode === 'grid') return <div className="polarGrid" style={stageTransform(align)}><span>{eye === 'left' ? 'LEFT PROJECTOR' : 'RIGHT PROJECTOR'}</span></div>
@@ -129,6 +180,8 @@ function PolarizedProjection({ pair, generatedPairAvailable, setProcessingStage 
 
         <div className="polarModeBar"><button className={mode === 'images' ? 'active' : ''} onClick={() => setMode('images')}>Stereo images</button><button className={mode === 'grid' ? 'active' : ''} onClick={() => setMode('grid')}>Alignment grid</button><button className={mode === 'leakage' ? 'active' : ''} onClick={() => setMode('leakage')}>Crosstalk test</button></div>
         <div className="polarStages"><div ref={leftStage} className="polarStage">{renderContent('left', physicalLeft, leftAlign)}<button onClick={() => leftStage.current?.requestFullscreen?.()}>Fullscreen A</button></div><div ref={rightStage} className="polarStage">{renderContent('right', physicalRight, rightAlign)}<button onClick={() => rightStage.current?.requestFullscreen?.()}>Fullscreen B</button></div></div>
+        <div className="polarWindowActions"><button disabled={!ready && mode === 'images'} onClick={() => openProjectorWindow('left')}>Open projector A window</button><button disabled={!ready && mode === 'images'} onClick={() => openProjectorWindow('right')}>Open projector B window</button></div>
+        <p className="polarFine">For a two-display setup, open both projector windows, drag each to its projector/display, then use the Fullscreen button inside each window. Alignment-grid and crosstalk modes update in the open windows as you switch modes or adjust geometry.</p>
         {loading && <div className="polarStatus">Preparing stereo eyes…</div>}{error && <div className="phantogramError">{error}</div>}
 
         <div className="polarAlignment">{alignControl('Projector A alignment', leftAlign, setLeftAlign)}{alignControl('Projector B alignment', rightAlign, setRightAlign)}</div>
