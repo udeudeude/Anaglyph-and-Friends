@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from "react";
 import "./styles/ImageUpload.css";
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
+import UiIcon from "./UiIcon";
 
 type Props = {
     setIsDepthMapReadyStateLifter: (ready: boolean) => void;
@@ -389,10 +390,42 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             }
         };
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat) return;
+            if (event.repeat) return;
             const target = event.target as HTMLElement | null;
             if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-            if (event.key.toLowerCase() === 'u' && isChangeAllowed) {
+
+            const key = event.key.toLowerCase();
+            const primary = event.metaKey || event.ctrlKey;
+
+            if (depthEditing && primary && key === 'z') {
+                event.preventDefault();
+                if (event.shiftKey) {
+                    if (canRedoDepth && isChangeAllowed) void postDepthEdit({ operation: 'redo' });
+                } else if (canUndoDepth && isChangeAllowed) void postDepthEdit({ operation: 'undo' });
+                return;
+            }
+            if (depthEditing && event.ctrlKey && !event.metaKey && key === 'y') {
+                event.preventDefault();
+                if (canRedoDepth && isChangeAllowed) void postDepthEdit({ operation: 'redo' });
+                return;
+            }
+            if (event.key === 'Escape') {
+                if (inspect) {
+                    event.preventDefault();
+                    setInspect(null);
+                } else if (depthEditing) {
+                    event.preventDefault();
+                    setDepthEditing(false);
+                }
+                return;
+            }
+            if (primary && !event.shiftKey && !event.altKey && key === 'o' && isChangeAllowed && !depthEditing) {
+                event.preventDefault();
+                imageInputRef.current?.click();
+                return;
+            }
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+            if (key === 'u' && isChangeAllowed) {
                 event.preventDefault();
                 imageInputRef.current?.click();
             }
@@ -403,7 +436,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             window.removeEventListener('paste', onPaste);
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [isChangeAllowed, imageUrl, depthMapUrl]);
+    }, [isChangeAllowed, imageUrl, depthMapUrl, depthEditing, canUndoDepth, canRedoDepth, inspect]);
 
     const triggerDepthDownload = (kind: 'gray16' | 'color' | 'npy') => {
         const link = document.createElement('a');
@@ -415,7 +448,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
 
     return (
         <div
-            className={`sourcePanel ${isDragging ? 'dragActive' : ''}`}
+            className={`sourcePanel ${isDragging ? 'dragActive' : ''} ${depthEditing ? 'depthEditorOpen' : ''}`}
             onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }}
             onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setIsDragging(true); }}
             onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false); }}
@@ -423,7 +456,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         >
             <div className="panelLabel">SOURCE</div>
             <button className="primaryAction" onClick={() => imageInputRef.current?.click()} disabled={!isChangeAllowed && !!imageUrl}>
-                <span className="buttonIcon">＋</span> Choose image <kbd>U</kbd>
+                <UiIcon name="upload" /> Choose image <kbd>U / ⌘O</kbd>
             </button>
             <button className="secondaryAction" onClick={pasteFromClipboard} disabled={!isChangeAllowed && !!imageUrl}>Paste image <kbd>⌘V</kbd></button>
             <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" ref={imageInputRef} className="hiddenInput" onClick={(e) => { e.currentTarget.value = ""; }} onChange={handleImageChange} />
@@ -436,38 +469,50 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             {sourceMeta && <div className="sourceMeta">{sourceMeta}</div>}
 
             <div className="depthHeader"><span>{depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'}</span>{depthMapIsLoading && <span className="miniLoader" />}</div>
-            <button
-                className={`depthPreview inspectButton ${depthEditing ? 'editing' : ''}`}
-                onClick={() => !depthEditing && depthMapUrl && setInspect({url: depthMapUrl, label: depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'})}
-                onPointerDown={beginDepthStroke}
-                onPointerMove={continueDepthStroke}
-                onPointerUp={finishDepthStroke}
-                onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); strokePointsRef.current = []; }}
-                disabled={!depthMapUrl}
-                title={depthMapUrl ? (depthEditing ? 'Paint directly on the active depth map' : 'Click to inspect depth map') : undefined}
-            >
-                {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
-            </button>
+            <div className={`depthWorkArea ${depthEditing ? 'active' : ''}`} role={depthEditing ? 'dialog' : undefined} aria-modal={depthEditing ? 'true' : undefined} aria-label={depthEditing ? 'Depth map editor' : undefined}>
+                {depthEditing && <div className="depthWorkHeader">
+                    <div><UiIcon name="edit" /><span><strong>Depth map editor</strong><small>Paint on the larger map, then press Esc or Done when finished.</small></span></div>
+                    <button type="button" onClick={() => setDepthEditing(false)}><UiIcon name="close" /> Done</button>
+                </div>}
+                <button
+                    className={`depthPreview inspectButton ${depthEditing ? 'editing' : ''}`}
+                    onClick={() => !depthEditing && depthMapUrl && setInspect({url: depthMapUrl, label: depthSource === 'ai' ? 'AI depth map' : 'Imported depth map'})}
+                    onPointerDown={beginDepthStroke}
+                    onPointerMove={continueDepthStroke}
+                    onPointerUp={finishDepthStroke}
+                    onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); strokePointsRef.current = []; }}
+                    disabled={!depthMapUrl}
+                    title={depthMapUrl ? (depthEditing ? 'Paint directly on the active depth map' : 'Click to inspect depth map') : undefined}
+                >
+                    {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
+                </button>
 
-            {depthMapUrl && <div className="depthEditorControls">
-                <button className={depthEditing ? 'depthEditToggle active' : 'depthEditToggle'} onClick={() => setDepthEditing(value => !value)} disabled={!isChangeAllowed}>{depthEditing ? 'Finish painting depth' : 'Edit depth map'}</button>
-                {depthEditing && <>
+                {depthEditing && depthMapUrl && <div className="depthEditorControls">
+                    <div className="depthHistoryActions">
+                        <button className="historyButton" onClick={() => void postDepthEdit({ operation: 'undo' })} disabled={!isChangeAllowed || !canUndoDepth} title="Undo depth edit (⌘Z)"><UiIcon name="undo" /><span>Undo</span><kbd>⌘Z</kbd></button>
+                        <button className="historyButton" onClick={() => void postDepthEdit({ operation: 'redo' })} disabled={!isChangeAllowed || !canRedoDepth} title="Redo depth edit (⌘⇧Z)"><UiIcon name="redo" /><span>Redo</span><kbd>⌘⇧Z</kbd></button>
+                        <span className="historyStatus">{depthHistoryCount ? `${depthHistoryPosition} / ${depthHistoryCount} edits` : 'No edits yet'}</span>
+                    </div>
                     <div className="depthBrushRow">
                         <label><span>Brush</span><select value={brushDirection} onChange={(e) => setBrushDirection(e.target.value as typeof brushDirection)}><option value="lighter">Raise depth value</option><option value="darker">Lower depth value</option></select></label>
                         <label><span>Brush size</span><input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} /><strong>{brushSize}%</strong></label>
                         <label><span>Brush strength</span><input type="range" min="5" max="100" value={brushStrength} onChange={(e) => setBrushStrength(Number(e.target.value))} /><strong>{brushStrength}%</strong></label>
                     </div>
                     <p>Drag directly over the colored depth preview. The editor changes the underlying float32 depth map, not an 8-bit screenshot.</p>
-                </>}
-                <div className="depthAdjustGrid">
-                    <label><span>Black point</span><input type="number" min="0" max="99" value={editBlack} onChange={(e) => setEditBlack(Number(e.target.value))} /><small>%</small></label>
-                    <label><span>White point</span><input type="number" min="1" max="100" value={editWhite} onChange={(e) => setEditWhite(Number(e.target.value))} /><small>%</small></label>
-                    <label><span>Gamma</span><input type="number" min="0.1" max="5" step="0.05" value={editGamma} onChange={(e) => setEditGamma(Number(e.target.value))} /></label>
-                    <label><span>Blur</span><input type="number" min="0" max="100" step="0.5" value={editBlur} onChange={(e) => setEditBlur(Number(e.target.value))} /><small>px</small></label>
-                </div>
-                {depthEditing && <div className="depthHistoryActions"><button onClick={() => void postDepthEdit({ operation: 'undo' })} disabled={!isChangeAllowed || !canUndoDepth}>Undo</button><button onClick={() => void postDepthEdit({ operation: 'redo' })} disabled={!isChangeAllowed || !canRedoDepth}>Redo</button><span>{depthHistoryCount ? `${depthHistoryPosition} / ${depthHistoryCount} edits` : 'No edits yet'}</span></div>}
-                <div className="depthEditActions"><button onClick={applyDepthAdjustments} disabled={!isChangeAllowed || editWhite <= editBlack}>Apply levels / blur</button><button onClick={resetDepthEdits} disabled={!isChangeAllowed || (!canUndoDepth && depthHistoryPosition === 0)}>Reset depth edits</button></div>
-            </div>}
+                    <details className="depthAdvancedAdjustments">
+                        <summary>Levels & blur</summary>
+                        <div className="depthAdjustGrid">
+                            <label><span>Black point</span><input type="number" min="0" max="99" value={editBlack} onChange={(e) => setEditBlack(Number(e.target.value))} /><small>%</small></label>
+                            <label><span>White point</span><input type="number" min="1" max="100" value={editWhite} onChange={(e) => setEditWhite(Number(e.target.value))} /><small>%</small></label>
+                            <label><span>Gamma</span><input type="number" min="0.1" max="5" step="0.05" value={editGamma} onChange={(e) => setEditGamma(Number(e.target.value))} /></label>
+                            <label><span>Blur</span><input type="number" min="0" max="100" step="0.5" value={editBlur} onChange={(e) => setEditBlur(Number(e.target.value))} /><small>px</small></label>
+                        </div>
+                        <button className="applyDepthAdjustments" onClick={applyDepthAdjustments} disabled={!isChangeAllowed || editWhite <= editBlack}>Apply levels / blur</button>
+                    </details>
+                    <button className="resetDepthEdits" onClick={resetDepthEdits} disabled={!isChangeAllowed || (!canUndoDepth && depthHistoryPosition === 0)}><UiIcon name="reset" /> Reset depth edits</button>
+                </div>}
+            </div>
+            {depthMapUrl && !depthEditing && <button className="depthEditToggle" onClick={() => setDepthEditing(true)} disabled={!isChangeAllowed}><UiIcon name="edit" /> Edit depth map</button>}
 
             {imageUrl && <div className="depthSourceControls">
                 <label><span>Depth source</span><select value={depthSource} disabled={!isChangeAllowed} onChange={(e) => void activateDepthSource(e.target.value as DepthSource)}><option value="ai">AI generated</option><option value="imported">Imported depth map</option></select></label>
@@ -479,16 +524,16 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             </div>}
 
             <div className="depthDownloads">
-                <button onClick={() => triggerDepthDownload('gray16')} disabled={!depthMapUrl}>16-bit depth PNG</button>
-                <button onClick={() => triggerDepthDownload('npy')} disabled={!depthMapUrl}>Raw float32</button>
-                <button onClick={() => triggerDepthDownload('color')} disabled={!depthMapUrl}>Color map</button>
+                <button onClick={() => triggerDepthDownload('gray16')} disabled={!depthMapUrl}><UiIcon name="download" />16-bit depth PNG</button>
+                <button onClick={() => triggerDepthDownload('npy')} disabled={!depthMapUrl}><UiIcon name="download" />Raw float32</button>
+                <button onClick={() => triggerDepthDownload('color')} disabled={!depthMapUrl}><UiIcon name="download" />Color map</button>
             </div>
 
             <div className="localNote"><strong>{depthSource === 'ai' ? 'Depth Anything V2' : 'Custom depth source'}</strong><span>The original image stays at full resolution. The active depth map drives every 3D technique and can be replaced independently of the visible image.</span></div>
 
             {isDragging && <div className="dropOverlay"><strong>Drop image</strong><span>Full-resolution original will be retained</span></div>}
             {inspect && <div className="inspectOverlay" role="dialog" aria-label={inspect.label} onClick={() => setInspect(null)}>
-                <button className="closeInspect" onClick={() => setInspect(null)}>Close</button>
+                <button className="closeInspect" onClick={() => setInspect(null)}><UiIcon name="close" /> Close</button>
                 <div className="inspectLabel">{inspect.label}</div>
                 <img src={inspect.url} alt={inspect.label} onClick={(event) => event.stopPropagation()} />
             </div>}

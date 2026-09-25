@@ -380,8 +380,14 @@ There is intentionally **no global regenerate shortcut**.
 | `X` | Cross-eyed view |
 | `F` | Fullscreen selected output |
 | `D` | Download selected output |
+| `Command-S` / `Ctrl-S` | Download/save the selected output instead of invoking the browser's Save Page command |
 | `U` | Open image chooser |
+| `Command-O` / `Ctrl-O` | Open image chooser |
 | `Command-V` | Paste an image using the normal macOS paste action |
+| `Command-Z` / `Ctrl-Z` | Undo a depth edit while the depth editor is open |
+| `Command-Shift-Z` / `Ctrl-Shift-Z` | Redo a depth edit |
+| `Ctrl-Y` | Redo a depth edit on platforms that use the Windows convention |
+| `Esc` | Leave the depth editor or close the image-inspection overlay |
 
 No casual keyboard shortcut changes stereo strength, Pop Out, lenticular calibration, or other rendering parameters.
 
@@ -416,7 +422,7 @@ The source sidebar exposes:
 - **16-bit depth PNG**: full source dimensions, normalized 0-65535 depth values;
 - **Raw float32**: normalized depth in NumPy `.npy` format;
 - **Color map**: the colored visualization used by the interface;
-- **Editable depth controls**: paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, undo/redo individual edit steps, or reset the edit session.
+- **Editable depth controls**: choosing **Edit depth map** automatically opens a large focused editing canvas; paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, undo/redo individual edit steps, or reset the edit session.
 
 Depth edits are applied to the underlying float32 map on the backend, not to the 8-bit color preview, so later downloads and 3D techniques use the edited high-precision data. The float32/16-bit products remain preferable to the colored visualization for external image-processing work.
 

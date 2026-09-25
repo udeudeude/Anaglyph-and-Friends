@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { mergeStoredSettings } from './techniques'
 import './styles/LayeredCompositeBuilder.css'
+import UiIcon from './UiIcon'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type OutputMode = 'anaglyph' | 'parallel' | 'cross' | 'left' | 'right'
@@ -340,8 +341,8 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
         <div className="layeredGrid">
             <section className="layeredControls">
                 <div className="layeredFiles">
-                    <div><strong>Foreground object</strong><span>{foreground?.name || 'Transparent PNG/WebP recommended'}</span><button onClick={() => foregroundInput.current?.click()}>{foreground ? 'Replace foreground' : 'Choose foreground'}</button>{foreground && <button onClick={() => setForeground(null)}>Remove</button>}</div>
-                    <div><strong>Optional object depth</strong><span>{layerDepth?.name || 'Grayscale image aligned to foreground'}</span><button onClick={() => depthInput.current?.click()}>{layerDepth ? 'Replace object depth' : 'Choose object depth'}</button>{layerDepth && <button onClick={() => setLayerDepth(null)}>Remove</button>}</div>
+                    <div><strong>Foreground object</strong><span>{foreground?.name || 'Transparent PNG/WebP recommended'}</span><button onClick={() => foregroundInput.current?.click()}><UiIcon name="upload" /> {foreground ? 'Replace foreground' : 'Choose foreground'}</button>{foreground && <button onClick={() => setForeground(null)}><UiIcon name="close" /> Remove</button>}</div>
+                    <div><strong>Optional object depth</strong><span>{layerDepth?.name || 'Grayscale image aligned to foreground'}</span><button onClick={() => depthInput.current?.click()}><UiIcon name="upload" /> {layerDepth ? 'Replace object depth' : 'Choose object depth'}</button>{layerDepth && <button onClick={() => setLayerDepth(null)}><UiIcon name="close" /> Remove</button>}</div>
                     <input ref={foregroundInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseForeground(event.target.files?.[0]); event.currentTarget.value = '' }} />
                     <input ref={depthInput} type="file" accept="image/png,image/webp,image/jpeg" onChange={event => { chooseDepth(event.target.files?.[0]); event.currentTarget.value = '' }} />
                 </div>
@@ -372,7 +373,7 @@ function LayeredCompositeBuilder({ isDepthMapReady, setProcessingStage }: Props)
                 <div className="layeredOutputHeader"><div><span className="panelLabel">OUTPUT</span><strong>{mode === 'anaglyph' ? 'Anaglyph · current glasses profile' : mode === 'parallel' ? 'Parallel stereo' : mode === 'cross' ? 'Cross-eyed stereo' : mode === 'left' ? 'Left eye' : 'Right eye'}</strong></div><span>{loading ? 'Rendering…' : isDepthMapReady ? 'Ready' : 'Waiting'}</span></div>
                 <div className="layeredModes"><button className={mode==='anaglyph'?'active':''} onClick={()=>setMode('anaglyph')}>Anaglyph</button><button className={mode==='parallel'?'active':''} onClick={()=>setMode('parallel')}>Parallel</button><button className={mode==='cross'?'active':''} onClick={()=>setMode('cross')}>Cross-Eyed</button><button className={mode==='left'?'active':''} onClick={()=>setMode('left')}>Left</button><button className={mode==='right'?'active':''} onClick={()=>setMode('right')}>Right</button></div>
                 <div className="layeredPreview" ref={previewRef}>{previewUrl ? <img src={previewUrl} alt="Layered 3D composite"/> : <div><strong>Layered composite preview</strong><span>The current base stereo scene appears here. Add a foreground object when ready.</span></div>}{loading && <div className="layeredBusy">Rendering…</div>}</div>
-                <div className="layeredActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}>Fullscreen</button><button onClick={() => void download()} disabled={!isDepthMapReady || downloading}>{downloading ? 'Preparing full resolution…' : 'Download full-resolution PNG'}</button></div>
+                <div className="layeredActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen</button><button onClick={() => void download()} disabled={!isDepthMapReady || downloading}>{downloading ? 'Preparing full resolution…' : <><UiIcon name="download" /> Download full-resolution PNG</>}</button></div>
                 {error && <div className="layeredError">{error}</div>}
                 <p className="layeredFine">Foreground alpha is preserved while the object is synthesized separately for each eye. A layer depth map is optional; without one, the object remains a flat stereo card at the selected depth position. This first compositor supports one independent foreground layer.</p>
             </section>

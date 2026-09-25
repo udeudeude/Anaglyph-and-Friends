@@ -4,6 +4,7 @@ import { mergeStoredSettings, techniqueInfo, type TechniqueSettings } from './te
 import { isCompletePair, type StereoPairDraft } from './studioAssets'
 import { renderStereoPairOutput, type PairTechnique } from './stereoPairRender'
 import './styles/StereoPairEditor.css'
+import UiIcon from './UiIcon'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type DepthPairTechnique = 'chromadepth' | 'wiggle' | 'pulfrich' | 'randomdot' | 'pattern'
@@ -224,6 +225,22 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
         }
     }
 
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.repeat) return
+            const target = event.target as HTMLElement | null
+            if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+            const key = event.key.toLowerCase()
+            const primary = event.metaKey || event.ctrlKey
+            if (primary && !event.shiftKey && !event.altKey && key === 's' && previewUrl && pairReady && !downloading) {
+                event.preventDefault()
+                void downloadCurrent()
+            }
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    }, [previewUrl, pairReady, downloading, activeTechnique, appliedSettings, swapEyes, downloadFormat, jpegQuality, depthReady])
+
     const downloadEye = (eye: 'left' | 'right') => {
         const file = pair[eye]
         if (!file) return
@@ -285,7 +302,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
 
         <div className="pairPreviewMeta">
             <div><strong>{info.label}</strong><span>{pairNote}</span></div>
-            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}>Fullscreen</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)}>{downloading ? 'Preparing…' : 'Download'}</button></div>
+            <div className="previewActions"><button onClick={() => previewRef.current?.requestFullscreen?.()} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen</button><button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!pairReady || downloading || (depthTechniques.has(activeTechnique as DepthPairTechnique) && !depthReady)}>{downloading ? 'Preparing…' : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button></div>
         </div>
 
         <div className="settingsCard pairGenericSettings">
@@ -303,7 +320,7 @@ function StereoPairEditor({ pair, setProcessingStage, onSendToViewMaster }: Prop
             <div className="downloadControls">
                 {fixedGif ? <div className="fixedFormat"><span>Format</span><strong>GIF</strong></div> : fixedPng ? <div className="fixedFormat"><span>Format</span><strong>PNG</strong></div> : <label>Format<select value={downloadFormat} onChange={(event) => setDownloadFormat(event.target.value as 'jpeg' | 'png')}><option value="png">PNG</option><option value="jpeg">JPEG</option></select></label>}
                 {!fixedGif && !fixedPng && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" value={jpegQuality} onChange={(event) => setJpegQuality(Number(event.target.value))} /><strong>{jpegQuality}</strong></label>}
-                <div className="eyeDownloads"><button onClick={() => downloadEye('left')} disabled={!pair.left}>Left eye</button><button onClick={() => downloadEye('right')} disabled={!pair.right}>Right eye</button></div>
+                <div className="eyeDownloads"><button onClick={() => downloadEye('left')} disabled={!pair.left}><UiIcon name="download" /> Left eye</button><button onClick={() => downloadEye('right')} disabled={!pair.right}><UiIcon name="download" /> Right eye</button></div>
                 <button className="pairToReel" onClick={onSendToViewMaster} disabled={!pairReady}>Add pair to View-Master</button>
             </div>
         </div>

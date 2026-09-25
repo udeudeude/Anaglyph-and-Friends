@@ -34,3 +34,12 @@
         min-height: 260px;
     }
 }
+
+
+/* Shared action icons. Keep icons subordinate to labels rather than replacing text. */
+.uiIcon {
+    width: 1.15em;
+    height: 1.15em;
+    flex: 0 0 auto;
+    vertical-align: -0.18em;
+}

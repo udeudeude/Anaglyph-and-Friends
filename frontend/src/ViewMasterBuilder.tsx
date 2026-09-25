@@ -4,6 +4,7 @@ import { downloadViewMasterPdf } from './viewMasterPdf'
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from './browserDepth'
 import type { StudioSource } from './studioAssets'
 import './styles/ViewMasterBuilder.css'
+import UiIcon from './UiIcon'
 import './styles/ViewMasterPairSlots.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
@@ -357,7 +358,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                                 </>}
                             </div>
                             <div className="vmSlotPicks">
-                                {slot.mode === 'single' ? <label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => chooseSingle(index, event)} disabled={building} />{slot.file ? 'Replace image' : 'Choose image'}</label> : <><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'left', event)} disabled={building} />{slot.leftFile ? 'Replace L' : 'Choose L'}</label><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'right', event)} disabled={building} />{slot.rightFile ? 'Replace R' : 'Choose R'}</label></>}
+                                {slot.mode === 'single' ? <label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => chooseSingle(index, event)} disabled={building} /><UiIcon name="upload" /> {slot.file ? 'Replace image' : 'Choose image'}</label> : <><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'left', event)} disabled={building} /><UiIcon name="upload" /> {slot.leftFile ? 'Replace L' : 'Choose L'}</label><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'right', event)} disabled={building} /><UiIcon name="upload" /> {slot.rightFile ? 'Replace R' : 'Choose R'}</label></>}
                             </div>
                             <button className="vmOpenStudio" disabled={!source || building} onClick={() => source && onOpenInStudio(source)}>Open in 3D Studio</button>
                         </div>
@@ -376,12 +377,12 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
 
                 <div className="vmBuildBar">
                     <div><strong>{readyCount}/7 scenes loaded · {generatedCount} generated · {importedPairCount} imported pairs</strong><span>{progress || 'Single-image scenes generate depth/stereo when you build. Imported pairs skip AI processing.'}</span></div>
-                    <div className="vmBuildActions"><button className="vmReset" onClick={reset} disabled={building || readyCount === 0}>Reset</button><button className="vmBuild" onClick={() => void build()} disabled={building || readyCount !== 7}>{building ? 'Building reel…' : 'Build View-Master reel'}</button></div>
+                    <div className="vmBuildActions"><button className="vmReset" onClick={reset} disabled={building || readyCount === 0}><UiIcon name="reset" /> Reset</button><button className="vmBuild" onClick={() => void build()} disabled={building || readyCount !== 7}>{building ? 'Building reel…' : 'Build View-Master reel'}</button></div>
                 </div>
                 {error && <div className="vmError">{error}</div>}
 
                 {masterSvg && masterPairs && <div className="vmResult">
-                    <div className="vmResultHeader"><div><div className="panelLabel">PRINT MASTER</div><strong>Reel layout ready</strong><span>PDF is the primary print-ready export: raster eye images are embedded directly and the current prototype reel/transport geometry remains vector at 1:1 physical scale. Print at 100% / Actual Size with fit-to-page scaling disabled.</span></div><div className="vmDownloadActions"><button onClick={() => void downloadPdf()}>Download PDF print master</button><button onClick={() => downloadSvg(masterSvg, 'view-master-transparency-master.svg')}>Download SVG (secondary)</button><button onClick={() => downloadSvg(cardTemplateSvg(), 'view-master-card-template.svg')}>Download cardstock template</button></div></div>
+                    <div className="vmResultHeader"><div><div className="panelLabel">PRINT MASTER</div><strong>Reel layout ready</strong><span>PDF is the primary print-ready export: raster eye images are embedded directly and the current prototype reel/transport geometry remains vector at 1:1 physical scale. Print at 100% / Actual Size with fit-to-page scaling disabled.</span></div><div className="vmDownloadActions"><button onClick={() => void downloadPdf()}><UiIcon name="download" /> Download PDF print master</button><button onClick={() => downloadSvg(masterSvg, 'view-master-transparency-master.svg')}><UiIcon name="download" /> Download SVG (secondary)</button><button onClick={() => downloadSvg(cardTemplateSvg(), 'view-master-card-template.svg')}><UiIcon name="download" /> Download cardstock template</button></div></div>
                     <div className="vmReelPreview"><img src={masterUrl} alt="Generated View-Master reel master" /></div>
                     <div className="vmPrintFacts"><span><strong>Prototype reel:</strong> 90 mm diameter</span><span><strong>Prototype frame:</strong> 11.75 × 10.5 mm</span><span><strong>Prototype pair spacing:</strong> 62.6 mm</span><span><strong>Imported pairs:</strong> original raster retained before reel cropping</span></div>
                 </div>}
