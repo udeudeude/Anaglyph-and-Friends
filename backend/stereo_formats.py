@@ -2,16 +2,44 @@ import cv2
 import numpy as np
 
 
-def make_anaglyph(left: np.ndarray, right: np.ndarray, glasses: str = "red-cyan", color_mode: str = "full") -> np.ndarray:
-    """Combine a stereo pair for red/cyan, red/green, or red/blue glasses.
+def _hex_rgb(value: str, fallback):
+    text = str(value or "").strip().lstrip("#")
+    if len(text) == 3:
+        text = "".join(char * 2 for char in text)
+    try:
+        if len(text) != 6:
+            raise ValueError
+        return tuple(int(text[index:index + 2], 16) for index in (0, 2, 4))
+    except (TypeError, ValueError):
+        return fallback
 
-    color_mode accepts the legacy strings full/half/gray and also a numeric
-    color-retention amount from 0..100. 100 reproduces full color, 50 reproduces
-    the previous half-color mode, and 0 reproduces grayscale rendering.
+
+def make_anaglyph(
+    left: np.ndarray,
+    right: np.ndarray,
+    glasses: str = "red-cyan",
+    color_mode: str = "full",
+    left_color: str = "#ff0000",
+    right_color: str = "#00ffff",
+    left_gain: float = 100.0,
+    right_gain: float = 100.0,
+) -> np.ndarray:
+    """Combine a stereo pair for standard or calibrated color-filter glasses.
+
+    The established red/cyan, red/green, and red/blue modes retain their
+    historical color-rendering behavior. Yellow and custom profiles use the
+    luminance of each eye, tinted by independently calibrated RGB output colors.
     """
     glasses = glasses.lower()
-    if glasses not in {"red-cyan", "red-green", "red-blue"}:
-        glasses = "red-cyan"
+    standard = {"red-cyan", "red-green", "red-blue"}
+
+    if glasses not in standard:
+        left_gray = cv2.cvtColor(left, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        right_gray = cv2.cvtColor(right, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        left_rgb = np.array(_hex_rgb(left_color, (255, 0, 0)), dtype=np.float32) * max(0.0, min(1.5, float(left_gain) / 100.0))
+        right_rgb = np.array(_hex_rgb(right_color, (0, 255, 255)), dtype=np.float32) * max(0.0, min(1.5, float(right_gain) / 100.0))
+        rgb = left_gray[:, :, None] * left_rgb[None, None, :] + right_gray[:, :, None] * right_rgb[None, None, :]
+        return np.clip(rgb[:, :, ::-1], 0, 255).astype(np.uint8)
 
     raw_mode = str(color_mode).lower()
     legacy_amounts = {"full": 100.0, "half": 50.0, "gray": 0.0}
@@ -30,8 +58,6 @@ def make_anaglyph(left: np.ndarray, right: np.ndarray, glasses: str = "red-cyan"
     right_blue_full = right[:, :, 0].astype(np.float32)
     right_green_full = right[:, :, 1].astype(np.float32)
 
-    # Preserve the three familiar landmarks while allowing continuous adjustment:
-    # 100 = full color; 50 = classic half-color; 0 = grayscale.
     if color_amount >= 50.0:
         t = (color_amount - 50.0) / 50.0
         left_red = left_gray * (1.0 - t) + left_red_full * t
