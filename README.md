@@ -303,6 +303,7 @@ The current code intentionally leaves physical calibration items explicit rather
   - optional grayscale foreground depth adds internal relief instead of treating the object as a flat card
   - outputs the composited left/right views as the current anaglyph profile, parallel stereo, cross-eyed stereo, or individual eye images
   - full-resolution PNG export
+- Layered projects can be saved and reopened as portable JSON files that embed the foreground image, optional object depth map, and compositor settings
 - **RGB Reveal / CMY Layers**
   - combine three independent source images as cyan, magenta, and yellow separations
   - red-, green-, and blue-filter simulations
@@ -320,6 +321,12 @@ The current code intentionally leaves physical calibration items explicit rather
   - optional A4/custom page sizes and selectable test sections under a collapsed **Advanced print setup** panel
   - optional saved printer/paper/material profiles and a setup JSON export for recording the exact test conditions
   - normal users do not encounter these controls unless they deliberately open the calibration tool
+- **Prepare print page** (under **More techniques -> Advanced tools**)
+  - place any finished PNG/JPEG/WebP artwork on a Letter, A4, or custom physical page
+  - set intended artwork width and margins while preserving aspect ratio
+  - optional crop marks, registration targets, 50 mm scale bar, title, print instructions, and page metadata
+  - export a print-page PNG with embedded physical DPI metadata
+  - export the page settings as JSON for traceability
 - **Lenticular 3D interlacing**
   - 60 LPI / 600 DPI / 6-view starting preset
   - 50 LPI and 40 LPI starting presets
@@ -422,7 +429,7 @@ The source sidebar exposes:
 - **16-bit depth PNG**: full source dimensions, normalized 0-65535 depth values;
 - **Raw float32**: normalized depth in NumPy `.npy` format;
 - **Color map**: the colored visualization used by the interface;
-- **Editable depth controls**: choosing **Edit depth map** automatically opens a large focused editing canvas; paint directly on the active map with a feathered raise/lower brush, adjust black/white points and gamma, apply blur, undo/redo individual edit steps, or reset the edit session.
+- **Editable depth controls**: choosing **Edit depth map** automatically opens a large focused editing canvas; paint directly on the active map with a feathered raise/lower brush, draw a rectangular selection with optional feathering so edits affect only part of the image, adjust black/white points and gamma, apply blur, undo/redo individual edit steps, or reset the edit session.
 
 Depth edits are applied to the underlying float32 map on the backend, not to the 8-bit color preview, so later downloads and 3D techniques use the edited high-precision data. The float32/16-bit products remain preferable to the colored visualization for external image-processing work.
 

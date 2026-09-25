@@ -112,7 +112,7 @@ export const defaultTechniqueSettings: TechniqueSettings = {
     },
 };
 
-export const techniqueInfo: Record<TechniqueId, {label: string; description: string; family: string}> = {
+export const techniqueInfo: Record<TechniqueId, {label: string; description: string; family: string; usage?: string}> = {
     anaglyph: { label: 'Anaglyph', description: 'Color-filter stereo with standard or fully custom filter profiles for screen and print.', family: 'Glasses' },
     parallel: { label: 'Parallel', description: 'Left eye on left for relaxed / wall-eyed viewing without glasses.', family: 'Unaided stereo' },
     cross: { label: 'Cross-Eyed', description: 'Stereo pair swapped for cross-eyed viewing without glasses.', family: 'Unaided stereo' },
@@ -125,11 +125,11 @@ export const techniqueInfo: Record<TechniqueId, {label: string; description: str
     randomdot: { label: 'Random-Dot Stereogram', description: 'Single-image autostereogram generated entirely from depth.', family: 'Autostereograms' },
     pattern: { label: 'Pattern Stereogram', description: 'Autostereogram using a repeating texture or your own pattern.', family: 'Autostereograms' },
     lenticular: { label: 'Lenticular 3D', description: 'Multi-view interlaced print matched to lenticular sheet and printer.', family: 'Print' },
-    topbottom: { label: 'Top / Bottom Stereo', description: 'Full left and right frames stacked vertically for compatible displays and video workflows.', family: 'Display compatibility' },
-    halfsbs: { label: 'Half-Width Side-by-Side', description: 'Each eye compressed to half width in one standard-size frame.', family: 'Display compatibility' },
-    rowinterlaced: { label: 'Row-Interlaced', description: 'Alternating image rows carry left and right eye views.', family: 'Display compatibility' },
-    columninterlaced: { label: 'Column-Interlaced', description: 'Alternating image columns carry left and right eye views.', family: 'Display compatibility' },
-    checkerboard: { label: 'Checkerboard Stereo', description: 'Left and right eye samples alternate in a checkerboard pattern.', family: 'Display compatibility' },
+    topbottom: { label: 'Top / Bottom Stereo', description: 'Full left and right frames stacked vertically in one digital image or video frame.', family: 'Digital display format', usage: 'Used by some 3D video, VR, media-player, and display workflows that expect the two eyes stacked vertically.' },
+    halfsbs: { label: 'Half-Width Side-by-Side', description: 'Each eye is compressed to half width inside one standard-size digital frame.', family: 'Digital display format', usage: 'Common in legacy and compressed 3D video distribution because an ordinary video frame can carry both eyes.' },
+    rowinterlaced: { label: 'Row-Interlaced', description: 'Alternating pixel rows carry the left and right eye views.', family: 'Digital display format', usage: 'Used by displays whose optical filter or scanning arrangement sends alternating rows to different eyes, especially some passive 3D systems.' },
+    columninterlaced: { label: 'Column-Interlaced', description: 'Alternating pixel columns carry the left and right eye views.', family: 'Digital display format', usage: 'Used by less-common autostereoscopic or filtered displays that separate the eyes by pixel columns.' },
+    checkerboard: { label: 'Checkerboard Stereo', description: 'Left and right eye samples alternate in a checkerboard pattern.', family: 'Digital display format', usage: 'Used by some legacy 3D televisions and DLP-based display systems that expect checkerboard-packed stereo.' },
 };
 
 export const stereoBasedTechniques = new Set<TechniqueId>([

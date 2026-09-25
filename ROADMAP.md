@@ -29,7 +29,7 @@ Potential follow-up after real compositing use:
 - automatic AI depth estimation for the foreground object in both hosted and fully offline local modes
 - interactive drag/rotate handles directly on the preview
 - occlusion against base-scene depth, so a foreground layer can pass behind selected base objects rather than only compositing over them
-- layer-project save/load files
+- Portable single-layer project save/load is now implemented; the remaining project-format work is extending it cleanly to multiple independent foreground layers
 
 ## Editable depth maps — implemented core editor
 
@@ -46,7 +46,7 @@ The active AI or imported depth source can now be corrected without flattening i
 
 Potential follow-up after real editing use:
 
-- polygon/lasso masks and selection feathering
+- polygon/lasso masks beyond the implemented feathered rectangular selection
 - edge-aware smoothing
 - clone/fill tools
 - split-view source/depth comparison at large scale
@@ -98,7 +98,7 @@ This establishes a UI principle for future calibration work: **useful defaults f
 Remaining pre-print software opportunities:
 
 - make other print-oriented exports optionally attach/reuse the same print profile metadata
-- add page-layout wrappers with crop/registration marks and viewing instructions around selected final artworks
+- the generic **Prepare print page** wrapper is now implemented with physical page sizing, crop/registration marks, scale reference, labels/instructions, PNG DPI metadata, and settings JSON
 - eventually add calibrated correction factors only after real measurements exist rather than guessing them
 
 ## Documentation / onboarding
@@ -129,6 +129,7 @@ Still to validate/refine with a physical reel and viewer:
 
 ## Current physical-calibration follow-up
 
+- **Generic viewer profiles are implemented** for Cardboard/phone viewers, traditional stereoscope cards, and mirror viewers. They intentionally save only values the user has chosen or measured; no unverified hardware measurements are invented.
 - **Named glasses/filter profiles are implemented** and store both screen and print calibration values locally in the browser. The remaining work is measuring actual glasses, displays, printers, inks, papers, and lighting.
 - **Single-mirror stereoscope output is implemented** as a generic configurable layout. A named DK/book preset waits on real measurements.
 - **Dual-projector polarized presentation windows are implemented** so each eye can be moved to a separate display and independently fullscreened. Real projector/filter/silver-screen calibration remains hardware work.

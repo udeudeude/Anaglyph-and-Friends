@@ -22,6 +22,7 @@ type Props = {
     onOpenColorReveal: () => void;
     onOpenLayered: () => void;
     onOpenPrintCalibration: () => void;
+    onOpenPrintPage: () => void;
 };
 
 const coreTechniques = new Set<TechniqueId>(['anaglyph', 'parallel', 'cross']);
@@ -45,7 +46,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration }: Props) {
+function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration, onOpenPrintPage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -215,6 +216,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         }
         if (value === '__print_calibration__') {
             onOpenPrintCalibration();
+            return;
+        }
+        if (value === '__print_page__') {
+            onOpenPrintPage();
             return;
         }
         if (value === '__compatibility__') {
@@ -396,12 +401,12 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
                     <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
                     <optgroup label="Compositing"><option value="__layered__">Layered 3D Composite</option></optgroup>
-                    <optgroup label="Advanced tools"><option value="__print_calibration__">Print calibration & setup…</option></optgroup>
+                    <optgroup label="Advanced tools"><option value="__print_calibration__">Print calibration & setup…</option><option value="__print_page__">Prepare print page…</option></optgroup>
                     <option className="techniqueMenuDivider" value="__divider__" disabled>────────────</option>
-                    <option value="__compatibility__">Even more techniques…</option>
+                    <option value="__compatibility__">Even more techniques · digital display formats…</option>
                 </select>
                 {(compatibilityMenuOpen || compatibilitySelected) && <select className={compatibilitySelected ? 'compatibilityTechniques active' : 'compatibilityTechniques'} value={compatibilitySelected ? activeTechnique : ''} onChange={(e) => setActiveTechnique(e.target.value as TechniqueId)}>
-                    <option value="" disabled>Display & compatibility…</option>
+                    <option value="" disabled>Digital display formats…</option>
                     <option value="halfsbs">Half-Width Side-by-Side</option>
                     <option value="topbottom">Top / Bottom Stereo</option>
                     <option value="rowinterlaced">Row-Interlaced</option>
@@ -409,7 +414,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <option value="checkerboard">Checkerboard Stereo</option>
                 </select>}
             </div>
-            <div className="techniqueSummary"><strong>{info.label}</strong><span>{info.description}</span><em>{info.family}</em></div>
+            <div className="techniqueSummary"><strong>{info.label}</strong><span>{info.description}</span>{info.usage && <small>{info.usage}</small>}<em>{info.family}</em></div>
 
             <div className={`previewFrame ${zoom > 1 ? 'zoomed' : ''}`} ref={previewRef} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onDoubleClick={resetZoom}>
                 {previewUrl ? <img src={previewUrl} alt={info.label} draggable={false} style={{maxWidth: `${viewScale}%`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`}} /> : (
@@ -428,7 +433,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             </div>
 
             <div className="previewMeta">
-                <div><strong>{info.label}</strong><span>{info.description}</span></div>
+                <div><strong>{info.label}</strong><span>{info.description}</span>{info.usage && <small>{info.usage}</small>}</div>
                 <div className="previewActions">
                     <div className="zoomControls"><button onClick={() => zoomBy(-0.25)} disabled={zoom <= 1}>−</button><button onClick={resetZoom}>{Math.round(zoom * 100)}%</button><button onClick={() => zoomBy(0.25)} disabled={zoom >= 4}>＋</button></div>
                     <button onClick={fullscreen} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen <kbd>F</kbd></button>

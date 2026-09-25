@@ -1,6 +1,6 @@
 import numpy as np
 
-from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, normalise_depth
+from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, apply_depth_selection, normalise_depth
 from stereo_formats import compatibility_stereo, make_anaglyph
 from technique_generator import technique_generator
 
@@ -59,6 +59,15 @@ def main():
     adjusted = adjust_depth_map(np.linspace(0, 1, 2400, dtype=np.float32).reshape(40, 60), black=0.2, white=0.8, gamma=1.2, blur_radius=1.5)
     assert adjusted.dtype == np.float32 and adjusted.shape == editable.shape
     assert adjusted.min() >= 0 and adjusted.max() <= 1
+
+    selection_source = np.full((20, 20), 0.25, dtype=np.float32)
+    selection_edited = np.full((20, 20), 0.75, dtype=np.float32)
+    selected = apply_depth_selection(selection_source, selection_edited, {'x0': .25, 'y0': .25, 'x1': .75, 'y1': .75, 'feather': 0})
+    assert selected[10, 10] > 0.7
+    assert selected[1, 1] == selection_source[1, 1]
+    feathered = apply_depth_selection(selection_source, selection_edited, {'x0': .2, 'y0': .2, 'x1': .8, 'y1': .8, 'feather': .1})
+    assert feathered[10, 10] > selection_source[10, 10]
+    assert feathered[0, 0] == selection_source[0, 0]
 
     cardboard = technique_generator.cardboard(view, view, 640, 360, 121, 63, 0.92)
     assert cardboard.shape == (360, 640, 3)

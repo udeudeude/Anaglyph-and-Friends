@@ -44,6 +44,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [canRedoDepth, setCanRedoDepth] = useState(false);
     const [depthHistoryPosition, setDepthHistoryPosition] = useState(0);
     const [depthHistoryCount, setDepthHistoryCount] = useState(0);
+    const [depthTool, setDepthTool] = useState<'brush' | 'select'>('brush');
+    const [depthSelection, setDepthSelection] = useState<{x0:number; y0:number; x1:number; y1:number} | null>(null);
+    const [selectionFeather, setSelectionFeather] = useState(2);
+    const selectionStartRef = useRef<{x:number; y:number} | null>(null);
     const strokePointsRef = useRef<Array<{x: number; y: number}>>([]);
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const useBrowserDepth = hostedBrowserDepthEnabled();
@@ -232,17 +236,33 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         };
     };
 
+    const activeSelectionPayload = depthSelection ? {
+        ...depthSelection,
+        feather: selectionFeather / 100,
+    } : null;
+
     const beginDepthStroke = (event: ReactPointerEvent<HTMLButtonElement>) => {
         if (!depthEditing || !depthMapUrl || !isChangeAllowed) return;
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
-        strokePointsRef.current = [normalizedPointer(event)];
+        const point = normalizedPointer(event);
+        if (depthTool === 'select') {
+            selectionStartRef.current = point;
+            setDepthSelection({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
+            return;
+        }
+        strokePointsRef.current = [point];
     };
 
     const continueDepthStroke = (event: ReactPointerEvent<HTMLButtonElement>) => {
         if (!depthEditing || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
         event.preventDefault();
         const next = normalizedPointer(event);
+        if (depthTool === 'select' && selectionStartRef.current) {
+            const start = selectionStartRef.current;
+            setDepthSelection({ x0: start.x, y0: start.y, x1: next.x, y1: next.y });
+            return;
+        }
         const previous = strokePointsRef.current[strokePointsRef.current.length - 1];
         if (!previous || Math.hypot(next.x - previous.x, next.y - previous.y) > 0.003) strokePointsRef.current.push(next);
     };
@@ -251,11 +271,16 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         if (!depthEditing || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
         event.preventDefault();
         event.currentTarget.releasePointerCapture(event.pointerId);
+        if (depthTool === 'select') {
+            selectionStartRef.current = null;
+            setDepthTool('brush');
+            return;
+        }
         const points = strokePointsRef.current;
         strokePointsRef.current = [];
         if (!points.length) return;
         const delta = (brushDirection === 'lighter' ? 1 : -1) * (brushStrength / 100) * 0.25;
-        void postDepthEdit({ operation: 'brush', points, radius: brushSize / 100, delta });
+        void postDepthEdit({ operation: 'brush', points, radius: brushSize / 100, delta, selection: activeSelectionPayload });
     };
 
     const applyDepthAdjustments = () => void postDepthEdit({
@@ -264,6 +289,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         white: editWhite / 100,
         gamma: editGamma,
         blur: editBlur,
+        selection: activeSelectionPayload,
     });
 
     const resetDepthEdits = () => {
@@ -305,6 +331,8 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         setCanRedoDepth(false);
         setDepthHistoryPosition(0);
         setDepthHistoryCount(0);
+        setDepthSelection(null);
+        setDepthTool('brush');
 
         const megabytes = file.size / (1024 * 1024);
         setSourceMeta(`${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB · original retained`);
@@ -480,11 +508,17 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                     onPointerDown={beginDepthStroke}
                     onPointerMove={continueDepthStroke}
                     onPointerUp={finishDepthStroke}
-                    onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); strokePointsRef.current = []; }}
+                    onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); strokePointsRef.current = []; selectionStartRef.current = null; }}
                     disabled={!depthMapUrl}
                     title={depthMapUrl ? (depthEditing ? 'Paint directly on the active depth map' : 'Click to inspect depth map') : undefined}
                 >
                     {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
+                    {depthEditing && depthSelection && <span className="depthSelectionRect" style={{
+                        left: `${Math.min(depthSelection.x0, depthSelection.x1) * 100}%`,
+                        top: `${Math.min(depthSelection.y0, depthSelection.y1) * 100}%`,
+                        width: `${Math.abs(depthSelection.x1 - depthSelection.x0) * 100}%`,
+                        height: `${Math.abs(depthSelection.y1 - depthSelection.y0) * 100}%`,
+                    }} />}
                 </button>
 
                 {depthEditing && depthMapUrl && <div className="depthEditorControls">
@@ -493,12 +527,18 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                         <button className="historyButton" onClick={() => void postDepthEdit({ operation: 'redo' })} disabled={!isChangeAllowed || !canRedoDepth} title="Redo depth edit (⌘⇧Z)"><UiIcon name="redo" /><span>Redo</span><kbd>⌘⇧Z</kbd></button>
                         <span className="historyStatus">{depthHistoryCount ? `${depthHistoryPosition} / ${depthHistoryCount} edits` : 'No edits yet'}</span>
                     </div>
+                    <div className="depthSelectionTools">
+                        <button className={depthTool === 'brush' ? 'active' : ''} onClick={() => setDepthTool('brush')}>Brush</button>
+                        <button className={depthTool === 'select' ? 'active' : ''} onClick={() => setDepthTool('select')}>Select rectangle</button>
+                        <button onClick={() => { setDepthSelection(null); setDepthTool('brush'); }} disabled={!depthSelection}>Clear selection</button>
+                    </div>
+                    {depthSelection && <label className="selectionFeather"><span>Selection feather</span><input type="range" min="0" max="15" value={selectionFeather} onChange={(e) => setSelectionFeather(Number(e.target.value))} /><strong>{selectionFeather}%</strong></label>}
                     <div className="depthBrushRow">
                         <label><span>Brush</span><select value={brushDirection} onChange={(e) => setBrushDirection(e.target.value as typeof brushDirection)}><option value="lighter">Raise depth value</option><option value="darker">Lower depth value</option></select></label>
                         <label><span>Brush size</span><input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} /><strong>{brushSize}%</strong></label>
                         <label><span>Brush strength</span><input type="range" min="5" max="100" value={brushStrength} onChange={(e) => setBrushStrength(Number(e.target.value))} /><strong>{brushStrength}%</strong></label>
                     </div>
-                    <p>Drag directly over the colored depth preview. The editor changes the underlying float32 depth map, not an 8-bit screenshot.</p>
+                    <p>{depthSelection ? 'Edits are limited to the selected rectangle. ' : ''}Drag on the map with the brush, or choose Select rectangle to isolate an area. The editor changes the underlying float32 depth map, not an 8-bit screenshot.</p>
                     <details className="depthAdvancedAdjustments">
                         <summary>Levels & blur</summary>
                         <div className="depthAdjustGrid">
