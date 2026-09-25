@@ -12,7 +12,7 @@ import numpy as np
 from anaglyph_generator import anaglyph_generator
 from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram
-from depth_sources import align_depth, load_depth_upload
+from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
 from dotenv import load_dotenv
 from werkzeug.utils import send_from_directory
@@ -211,8 +211,13 @@ def colour_depth_map_lightweight(depth_map):
     return cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
 
 
-def save_active_depth(depth_map):
+def save_active_depth(depth_map, editing=False):
     depth_map = np.clip(depth_map, 0.0, 1.0).astype(np.float32)
+    if not editing:
+        try:
+            os.remove(session_path("depth_map_edit_base.npy"))
+        except FileNotFoundError:
+            pass
     np.save(session_path("depth_map.npy"), depth_map, allow_pickle=False)
     coloured = colour_depth_map_lightweight(depth_map)
     coloured_preview, _ = resize_image_and_depth(coloured, depth_map, PREVIEW_MAX_DIMENSION)
@@ -335,6 +340,49 @@ def set_depth_source():
             depth = 1.0 - depth
         save_active_depth(depth)
         return jsonify({"success": True, "source": source_name, "mode": mode, "invert": invert}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/depth-map/edit", methods=["POST"])
+def edit_depth_map():
+    try:
+        ensure_depth_maps()
+        payload = request.get_json(silent=True) or {}
+        operation = str(payload.get("operation", "")).lower()
+        depth_path = session_path("depth_map.npy")
+        base_path = session_path("depth_map_edit_base.npy")
+
+        if operation == "reset":
+            if not os.path.exists(base_path):
+                return jsonify({"success": True, "edited": False}), 200
+            depth = np.load(base_path, allow_pickle=False).astype(np.float32)
+            os.remove(base_path)
+            save_active_depth(depth, editing=True)
+            return jsonify({"success": True, "edited": False}), 200
+
+        depth = np.load(depth_path, allow_pickle=False).astype(np.float32)
+        if not os.path.exists(base_path):
+            np.save(base_path, depth, allow_pickle=False)
+
+        if operation == "brush":
+            points = payload.get("points", [])
+            radius = float(payload.get("radius", 0.03))
+            delta = float(payload.get("delta", 0.08))
+            depth = apply_depth_brush(depth, points, radius_fraction=radius, delta=delta)
+        elif operation == "adjust":
+            depth = adjust_depth_map(
+                depth,
+                black=float(payload.get("black", 0.0)),
+                white=float(payload.get("white", 1.0)),
+                gamma=float(payload.get("gamma", 1.0)),
+                blur_radius=float(payload.get("blur", 0.0)),
+            )
+        else:
+            return jsonify({"error": "operation must be brush, adjust, or reset"}), 400
+
+        save_active_depth(depth, editing=True)
+        return jsonify({"success": True, "edited": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
