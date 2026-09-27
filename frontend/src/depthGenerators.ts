@@ -1,5 +1,4 @@
-// Only generators with a verified adapter belong here. Candidates under
-// investigation are documented in the roadmap, not offered as working options.
+// Automatic remains on the established V2 adapter. Optional models are explicit.
 export const AUTOMATIC_DEPTH_GENERATOR = 'automatic' as const
 
 export const DEPTH_GENERATORS = [
@@ -7,6 +6,12 @@ export const DEPTH_GENERATORS = [
         id: 'depth-anything-v2-small',
         name: 'Depth Anything V2 Small',
         runtimes: ['browser', 'local'],
+        depthConvention: 'near-is-high',
+    },
+    {
+        id: 'depth-anything-v3-small',
+        name: 'Depth Anything V3 Small',
+        runtimes: ['browser'],
         depthConvention: 'near-is-high',
     },
 ] as const

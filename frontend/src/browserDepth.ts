@@ -20,7 +20,7 @@ export type BrowserDepthFailureInfo = {
     technical: string
 }
 
-class BrowserDepthError extends Error {
+export class BrowserDepthError extends Error {
     kind: BrowserDepthFailureKind
     cause?: unknown
 
@@ -90,7 +90,7 @@ export function describeBrowserDepthError(error: unknown): BrowserDepthFailureIn
         return {
             kind,
             title: 'Couldn’t download the AI depth model',
-            detail: 'The source image is still loaded. A stable connection is especially important the first time this browser loads Depth Anything V2.',
+            detail: 'The source image is still loaded. A stable connection is especially important the first time this browser loads the selected model.',
             technical,
         }
     }
@@ -230,9 +230,10 @@ export const hostedBrowserDepthEnabled = () => {
 
 export async function generateBrowserDepth(file: File, progress?: Progress, selection: DepthGeneratorSelection = AUTOMATIC_DEPTH_GENERATOR): Promise<{ file: File; engine: string; generator: string }> {
     const generator = resolveDepthGenerator(selection, 'browser')
-    // V2's ONNX pipeline and its near-is-high output are the verified adapter.
-    // Other models need their own preprocessing and depth-convention adapter.
-    if (generator.id !== 'depth-anything-v2-small') throw new Error(`No browser adapter for ${generator.name}`)
+    if (generator.id === 'depth-anything-v3-small') {
+        const { generateV3Depth } = await import('./browserDepthV3')
+        return generateV3Depth(file, progress, generator.name)
+    }
     const estimator = await createEstimator(progress)
     progress?.(`Estimating depth on this device (${estimatorEngine})…`)
     const sourceUrl = URL.createObjectURL(file)
