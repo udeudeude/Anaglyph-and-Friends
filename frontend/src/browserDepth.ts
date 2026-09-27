@@ -66,7 +66,9 @@ const looksLikeDownloadFailure = (error: unknown) => {
 }
 
 export function describeBrowserDepthError(error: unknown): BrowserDepthFailureInfo {
-    const technical = errorText(error)
+    const technical = error instanceof BrowserDepthError && error.cause
+        ? `${error.message}: ${errorText(error.cause)}`
+        : errorText(error)
     const kind: BrowserDepthFailureKind = error instanceof BrowserDepthError
         ? error.kind
         : looksLikeDownloadFailure(error)
