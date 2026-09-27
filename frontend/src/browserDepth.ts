@@ -3,16 +3,131 @@ const MODEL_ID = 'onnx-community/depth-anything-v2-small'
 
 type Progress = (message: string) => void
 
+export type BrowserDepthFailureKind =
+    | 'library-download'
+    | 'model-download'
+    | 'model-startup'
+    | 'inference'
+    | 'output'
+
+export type BrowserDepthFailureInfo = {
+    kind: BrowserDepthFailureKind
+    title: string
+    detail: string
+    technical: string
+}
+
+class BrowserDepthError extends Error {
+    kind: BrowserDepthFailureKind
+    cause?: unknown
+
+    constructor(kind: BrowserDepthFailureKind, message: string, cause?: unknown) {
+        super(message)
+        this.name = 'BrowserDepthError'
+        this.kind = kind
+        this.cause = cause
+    }
+}
+
 let estimatorPromise: Promise<any> | null = null
 let estimatorEngine = ''
+
+const errorText = (error: unknown) => {
+    if (error instanceof Error) return error.message || error.name
+    if (typeof error === 'string') return error
+    try {
+        return JSON.stringify(error)
+    } catch {
+        return String(error)
+    }
+}
+
+const looksLikeDownloadFailure = (error: unknown) => {
+    const text = errorText(error).toLowerCase()
+    return [
+        'failed to fetch',
+        'fetch failed',
+        'network',
+        'networkerror',
+        'load failed',
+        'loading chunk',
+        'dynamically imported module',
+        'status 4',
+        'status 5',
+        '404',
+        '403',
+        'cdn.jsdelivr',
+        'huggingface',
+        'resolve/main',
+        'could not locate',
+        'could not load',
+        'download',
+    ].some(fragment => text.includes(fragment))
+}
+
+export function describeBrowserDepthError(error: unknown): BrowserDepthFailureInfo {
+    const technical = errorText(error)
+    const kind: BrowserDepthFailureKind = error instanceof BrowserDepthError
+        ? error.kind
+        : looksLikeDownloadFailure(error)
+            ? 'model-download'
+            : 'inference'
+
+    if (kind === 'library-download') {
+        return {
+            kind,
+            title: 'Couldn’t load the browser AI',
+            detail: 'The AI code could not be downloaded. Check the connection or a content blocker, then retry.',
+            technical,
+        }
+    }
+    if (kind === 'model-download') {
+        return {
+            kind,
+            title: 'Couldn’t download the AI depth model',
+            detail: 'The source image is still loaded. A stable connection is especially important the first time this browser loads Depth Anything V2.',
+            technical,
+        }
+    }
+    if (kind === 'model-startup') {
+        return {
+            kind,
+            title: 'The AI depth model couldn’t start',
+            detail: 'WebGPU and the browser CPU fallback were unable to start the model. Retrying may help; if it repeats, this browser or device may be the issue.',
+            technical,
+        }
+    }
+    if (kind === 'output') {
+        return {
+            kind,
+            title: 'Depth was calculated, but its image could not be created',
+            detail: 'The model ran, but the browser could not convert its result into a usable depth map. Retry once; if it repeats, the technical details can help diagnose it.',
+            technical,
+        }
+    }
+    return {
+        kind,
+        title: 'The AI model loaded, but depth calculation failed',
+        detail: 'This is later than a model-download failure. Retry once; if it repeats on the same image, import a depth map while we diagnose the browser/device issue.',
+        technical,
+    }
+}
 
 async function createEstimator(progress?: Progress) {
     if (estimatorPromise) return estimatorPromise
     estimatorPromise = (async () => {
-        progress?.('Loading Depth Anything V2 into this browser…')
+        progress?.('Loading browser AI… first use may need a one-time model download')
         const moduleUrl: string = TRANSFORMERS_CDN
-        const transformers: any = await import(/* @vite-ignore */ moduleUrl)
+        let transformers: any
+        try {
+            transformers = await import(/* @vite-ignore */ moduleUrl)
+        } catch (error) {
+            throw new BrowserDepthError('library-download', 'Failed to download the browser AI library', error)
+        }
+
+        progress?.('Loading Depth Anything V2 model…')
         const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator
+        let webGpuError: unknown = null
         if (hasWebGpu) {
             try {
                 estimatorEngine = 'WebGPU'
@@ -21,28 +136,42 @@ async function createEstimator(progress?: Progress) {
                     dtype: 'q4f16',
                     progress_callback: (info: any) => {
                         if (info?.status === 'progress' && typeof info.progress === 'number') {
-                            progress?.(`Loading browser AI… ${Math.round(info.progress)}%`)
+                            progress?.(`Loading AI model… ${Math.round(info.progress)}%`)
                         }
                     },
                 })
             } catch (error) {
+                webGpuError = error
                 console.warn('WebGPU depth model failed; falling back to browser CPU', error)
-                estimatorPromise = null
             }
         }
+
         estimatorEngine = 'browser CPU'
-        return transformers.pipeline('depth-estimation', MODEL_ID, {
-            progress_callback: (info: any) => {
-                if (info?.status === 'progress' && typeof info.progress === 'number') {
-                    progress?.(`Loading browser AI… ${Math.round(info.progress)}%`)
-                }
-            },
-        })
+        progress?.(hasWebGpu ? 'WebGPU unavailable here · trying browser CPU…' : 'Starting browser CPU depth model…')
+        try {
+            return await transformers.pipeline('depth-estimation', MODEL_ID, {
+                progress_callback: (info: any) => {
+                    if (info?.status === 'progress' && typeof info.progress === 'number') {
+                        progress?.(`Loading AI model… ${Math.round(info.progress)}%`)
+                    }
+                },
+            })
+        } catch (error) {
+            const combined = webGpuError
+                ? `WebGPU: ${errorText(webGpuError)}; CPU: ${errorText(error)}`
+                : errorText(error)
+            const kind: BrowserDepthFailureKind = looksLikeDownloadFailure(error) || looksLikeDownloadFailure(webGpuError)
+                ? 'model-download'
+                : 'model-startup'
+            throw new BrowserDepthError(kind, combined, error)
+        }
     })()
+
     try {
         return await estimatorPromise
     } catch (error) {
         estimatorPromise = null
+        estimatorEngine = ''
         throw error
     }
 }
@@ -99,8 +228,20 @@ export async function generateBrowserDepth(file: File, progress?: Progress): Pro
     progress?.(`Estimating depth on this device (${estimatorEngine})…`)
     const sourceUrl = URL.createObjectURL(file)
     try {
-        const result = await estimator(sourceUrl)
-        const blob = await depthToPng(result.depth)
+        let result: any
+        try {
+            result = await estimator(sourceUrl)
+        } catch (error) {
+            throw new BrowserDepthError('inference', 'Depth inference failed after the model loaded', error)
+        }
+
+        let blob: Blob
+        try {
+            blob = await depthToPng(result.depth)
+        } catch (error) {
+            throw new BrowserDepthError('output', 'Depth output could not be converted to PNG', error)
+        }
+
         return {
             file: new File([blob], 'browser-depth-anything-v2.png', { type: 'image/png' }),
             engine: estimatorEngine,
