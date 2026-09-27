@@ -893,6 +893,11 @@ def special_phantogram():
         glasses = request.args.get("glasses", "red-cyan").lower()
         if glasses not in ("red-cyan", "red-green", "red-blue"):
             return jsonify({"error": "glasses must be red-cyan, red-green, or red-blue"}), 400
+        color_mode = request.args.get("color_mode", "luminance").lower()
+        if color_mode not in ("luminance", "color"):
+            return jsonify({"error": "color_mode must be luminance or color"}), 400
+        if relief_mm >= eye_height_in * 25.4:
+            return jsonify({"error": "Eye height must exceed the maximum relief height"}), 400
         reverse_depth = request.args.get("reverse_depth", "false").lower() == "true"
         ground_plane = request.args.get("ground_plane", "false").lower() == "true"
         plane_corners = None
@@ -905,9 +910,13 @@ def special_phantogram():
             if not isinstance(plane_corners, list) or len(plane_corners) != 4:
                 raise ValueError("Ground plane requires exactly four corners")
 
-        image, depth = source_and_depth("full")
         full_w = max(300, int(round(width_in * dpi)))
         full_h = max(300, int(round(height_in * dpi)))
+        # A measured 8×6-inch 600-DPI relief exceeded 590 MB during rendering.
+        # Avoid exhausting the hosted free instance; local installs have no cap.
+        if scope == "full" and os.getenv("AAF_BROWSER_DEPTH", "false").lower() == "true" and full_w * full_h > 7_000_000:
+            return jsonify({"error": "This print size and DPI exceed hosted memory. Choose a smaller print or lower DPI, or use the local edition for high-resolution output."}), 400
+        image, depth = source_and_depth("full")
         if scope == "preview":
             scale = min(1.0, 1200.0 / max(full_w, full_h))
             output_w = max(300, int(round(full_w * scale)))
@@ -929,6 +938,7 @@ def special_phantogram():
             relief_mm=relief_mm,
             glasses=glasses,
             reverse_depth=reverse_depth,
+            color_mode=color_mode,
         )
         if scope == "full":
             pil = Image.fromarray(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))

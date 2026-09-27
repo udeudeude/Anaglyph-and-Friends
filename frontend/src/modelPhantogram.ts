@@ -10,6 +10,21 @@ export type ModelMesh = {
     triangles: ModelTriangle[]
 }
 
+export function makePhantogramTestBlock(): ModelMesh {
+    const faces: { corners: [number, number, number][]; color: [number, number, number] }[] = [
+        { corners: [[-.5, -.5, 1], [.5, -.5, 1], [.5, .5, 1], [-.5, .5, 1]], color: [238, 238, 238] },
+        { corners: [[-.5, -.5, 0], [.5, -.5, 0], [.5, -.5, 1], [-.5, -.5, 1]], color: [92, 92, 92] },
+        { corners: [[.5, -.5, 0], [.5, .5, 0], [.5, .5, 1], [.5, -.5, 1]], color: [155, 155, 155] },
+        { corners: [[.5, .5, 0], [-.5, .5, 0], [-.5, .5, 1], [.5, .5, 1]], color: [112, 112, 112] },
+        { corners: [[-.5, .5, 0], [-.5, -.5, 0], [-.5, -.5, 1], [-.5, .5, 1]], color: [175, 175, 175] },
+    ]
+    const triangles: ModelTriangle[] = []
+    for (const { corners: [a, b, c, d], color } of faces) {
+        triangles.push({ a, b, c, color }, { a, b: c, c: d, color })
+    }
+    return { name: 'Geometric print test block', triangles }
+}
+
 export type ModelPhantogramSettings = {
     widthIn: number
     heightIn: number
@@ -166,7 +181,12 @@ function parseGlb(buffer: ArrayBuffer, name: string): ModelMesh {
             const mesh = json.meshes?.[node.mesh]
             for (const primitive of mesh?.primitives || []) {
                 if (primitive.mode !== undefined && primitive.mode !== 4) continue
-                const positions = accessorValues(primitive.attributes?.POSITION).map(v => transformPoint(world, [v[0], v[1], v[2]]))
+                // glTF is Y-up. The print renderer is Z-up, with the asset's
+                // +Z front facing the near edge of the print (negative Y).
+                const positions = accessorValues(primitive.attributes?.POSITION).map(v => {
+                    const [x, y, z] = transformPoint(world, [v[0], v[1], v[2]])
+                    return [x, -z || 0, y] as Vec3
+                })
                 const indices = primitive.indices !== undefined ? accessorValues(primitive.indices).map(v => v[0]) : positions.map((_v, index) => index)
                 const color = materials[primitive.material] || [190, 198, 210]
                 for (let i = 0; i + 2 < indices.length; i += 3) {
@@ -201,21 +221,68 @@ const rotatePoint = (p: Vec3, rx: number, ry: number, rz: number): Vec3 => {
     return [x, y, z]
 }
 
-function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSettings): ModelTriangle[] {
+export function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSettings): ModelTriangle[] {
     const rx = radians(settings.rotateX), ry = radians(settings.rotateY), rz = radians(settings.rotateZ)
     const rotated = mesh.triangles.map(tri => ({ ...tri, a: rotatePoint(tri.a, rx, ry, rz), b: rotatePoint(tri.b, rx, ry, rz), c: rotatePoint(tri.c, rx, ry, rz) }))
-    const points = rotated.flatMap(tri => [tri.a, tri.b, tri.c])
-    const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]))
-    const minY = Math.min(...points.map(p => p[1])), maxY = Math.max(...points.map(p => p[1]))
-    const minZ = Math.min(...points.map(p => p[2])), maxZ = Math.max(...points.map(p => p[2]))
-    const widthMm = settings.widthIn * 25.4 * settings.footprintPct / 100
-    const depthMm = settings.heightIn * 25.4 * settings.footprintPct / 100
-    const sx = widthMm / Math.max(1e-9, maxX - minX)
-    const sy = depthMm / Math.max(1e-9, maxY - minY)
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
+    for (const tri of rotated) for (const point of [tri.a, tri.b, tri.c]) {
+        for (let axis = 0; axis < 3; axis += 1) {
+            if (!Number.isFinite(point[axis])) throw new Error('Model contains non-finite coordinates')
+            min[axis] = Math.min(min[axis], point[axis])
+            max[axis] = Math.max(max[axis], point[axis])
+        }
+    }
+    if (!rotated.length) throw new Error('Model contains no triangles')
+    const [minX, minY, minZ] = min, [maxX, maxY, maxZ] = max
+    const pageWidth = settings.widthIn * 25.4, pageHeight = settings.heightIn * 25.4
+    const widthMm = pageWidth * settings.footprintPct / 100
+    const depthMm = pageHeight * settings.footprintPct / 100
+    // A single horizontal scale preserves the model's footprint aspect ratio.
+    const preferredScale = Math.min(widthMm / Math.max(1e-9, maxX - minX), depthMm / Math.max(1e-9, maxY - minY))
     const sz = settings.reliefMm / Math.max(1e-9, maxZ - minZ)
     const cx = (minX + maxX) / 2
     const cy = (minY + maxY) / 2
-    const map = (p: Vec3): Vec3 => [(p[0] - cx) * sx, (p[1] - cy) * sy + settings.heightIn * 25.4 / 2, Math.max(0, (p[2] - minZ) * sz)]
+    const eyeZ = settings.eyeHeightIn * 25.4, eyeY = -settings.viewDistanceIn * 25.4
+    if (settings.reliefMm >= eyeZ) throw new Error('Eye height must exceed model height above the print')
+    const halfIpd = settings.ipdMm / 2
+    const margin = 0.01 * Math.min(pageWidth, pageHeight)
+
+    // Fit the projected *left and right* silhouettes, not just the footprint
+    // on z=0. A high object can otherwise be clipped beyond the far paper edge.
+    const placement = (scale: number) => {
+        let minCx = -Infinity, maxCx = Infinity, minCy = -Infinity, maxCy = Infinity
+        for (const tri of rotated) for (const p of [tri.a, tri.b, tri.c]) {
+            const z = Math.max(0, (p[2] - minZ) * sz)
+            const t = eyeZ / (eyeZ - z)
+            const dx = (p[0] - cx) * scale, dy = (p[1] - cy) * scale
+            const yOffset = (1 - t) * eyeY
+            minCy = Math.max(minCy, (margin - yOffset) / t - dy)
+            maxCy = Math.min(maxCy, (pageHeight - margin - yOffset) / t - dy)
+            for (const eyeX of [-halfIpd, halfIpd]) {
+                const xOffset = (1 - t) * eyeX
+                minCx = Math.max(minCx, (-pageWidth / 2 + margin - xOffset) / t - dx)
+                maxCx = Math.min(maxCx, (pageWidth / 2 - margin - xOffset) / t - dx)
+            }
+        }
+        return minCx <= maxCx && minCy <= maxCy
+            ? { x: Math.max(minCx, Math.min(maxCx, 0)), y: Math.max(minCy, Math.min(maxCy, pageHeight / 2)) }
+            : null
+    }
+    let scale = preferredScale
+    let center = placement(scale)
+    if (!center) {
+        if (!placement(0)) throw new Error('Model height is too large for this print and eye position; reduce height or change the physical setup')
+        let lower = 0, upper = scale
+        for (let i = 0; i < 18; i += 1) {
+            const middle = (lower + upper) / 2
+            if (placement(middle)) lower = middle
+            else upper = middle
+        }
+        scale = lower * 0.999 // Keep projected edges away from rounding at the border.
+        center = placement(scale)
+    }
+    if (!center) throw new Error('Could not fit both eye projections on the print')
+    const map = (p: Vec3): Vec3 => [(p[0] - cx) * scale + center.x, (p[1] - cy) * scale + center.y, Math.max(0, (p[2] - minZ) * sz)]
     return rotated.map(tri => ({ ...tri, a: map(tri.a), b: map(tri.b), c: map(tri.c) }))
 }
 
@@ -225,19 +292,26 @@ const length = (a: Vec3) => Math.hypot(a[0], a[1], a[2])
 const normalize = (a: Vec3): Vec3 => { const l = length(a) || 1; return [a[0] / l, a[1] / l, a[2] / l] }
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
+export function projectPointToPrint(point: Vec3, eye: Vec3): { x: number; y: number; distance: number } | null {
+    if (point[2] >= eye[2] || eye[2] <= 0) return null
+    const t = eye[2] / (eye[2] - point[2])
+    return {
+        x: eye[0] + t * (point[0] - eye[0]),
+        y: eye[1] + t * (point[1] - eye[1]),
+        // Depth along the plane normal; reciprocal depth is linear in the
+        // projected triangle's barycentric coordinates.
+        distance: eye[2] - point[2],
+    }
+}
+
 function renderEye(triangles: ModelTriangle[], eye: Vec3, widthMm: number, heightMm: number, pixelWidth: number, pixelHeight: number): ImageData {
     const pixels = new Uint8ClampedArray(pixelWidth * pixelHeight * 4)
     const depth = new Float32Array(pixelWidth * pixelHeight)
     depth.fill(Number.POSITIVE_INFINITY)
     for (let i = 0; i < pixelWidth * pixelHeight; i += 1) { pixels[i * 4] = 255; pixels[i * 4 + 1] = 255; pixels[i * 4 + 2] = 255; pixels[i * 4 + 3] = 255 }
     const project = (p: Vec3) => {
-        const denominator = p[2] - eye[2]
-        if (Math.abs(denominator) < 1e-6) return null
-        const t = -eye[2] / denominator
-        if (t <= 0) return null
-        const qx = eye[0] + t * (p[0] - eye[0])
-        const qy = eye[1] + t * (p[1] - eye[1])
-        return { x: (qx / widthMm + 0.5) * pixelWidth, y: (qy / heightMm) * pixelHeight, d: length(subtract(p, eye)) }
+        const print = projectPointToPrint(p, eye)
+        return print && { x: (print.x / widthMm + 0.5) * (pixelWidth - 1), y: (print.y / heightMm) * (pixelHeight - 1), d: print.distance }
     }
     const light = normalize([-0.35, -0.55, 1])
     for (const tri of triangles) {
@@ -257,7 +331,8 @@ function renderEye(triangles: ModelTriangle[], eye: Vec3, widthMm: number, heigh
             const w2 = ((pc.y - pa.y) * (px - pc.x) + (pa.x - pc.x) * (py - pc.y)) / area
             const w3 = 1 - w1 - w2
             if (w1 < -1e-5 || w2 < -1e-5 || w3 < -1e-5) continue
-            const distance = w1 * pa.d + w2 * pb.d + w3 * pc.d
+            // Projected barycentric weights require perspective correction.
+            const distance = 1 / (w1 / pa.d + w2 / pb.d + w3 / pc.d)
             const index = y * pixelWidth + x
             if (distance >= depth[index]) continue
             depth[index] = distance
@@ -306,6 +381,7 @@ async function pngWithDpi(canvas: HTMLCanvasElement, dpi: number): Promise<Blob>
 }
 
 export async function renderModelPhantogram(mesh: ModelMesh, settings: ModelPhantogramSettings, scope: 'preview' | 'full'): Promise<{ blob: Blob; width: number; height: number }> {
+    if (settings.eyeHeightIn * 25.4 <= settings.reliefMm) throw new Error('Eye height must exceed model height above the print')
     const fullWidth = Math.max(300, Math.round(settings.widthIn * settings.dpi))
     const fullHeight = Math.max(300, Math.round(settings.heightIn * settings.dpi))
     const scale = scope === 'preview' ? Math.min(1, 1100 / Math.max(fullWidth, fullHeight)) : 1

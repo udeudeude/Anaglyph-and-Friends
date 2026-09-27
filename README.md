@@ -457,7 +457,7 @@ The newer technique renderers build on the same depth map:
 - autostereograms vary repeating-pattern separation by depth;
 - wiggle-grams synthesize a sequence of virtual camera offsets;
 - lenticular output synthesizes several viewpoints and interlaces them according to printer DPI and calibrated lenticular pitch;
-- AI relief phantograms place the image/depth pair on a millimetre-scale height field, project that relief from independent left/right eye positions onto a physical print plane, and combine the projections as an anaglyph.
+- Phantograms project a 3D model from independent left/right eye positions onto the print plane. A built-in test block helps check the projection. Photograph + AI depth modes can make an approximate height-field study, but relative depth alone does not reconstruct the original camera or an object's true position above a real ground plane. The marked-plane mode requires four user-selected corners. See [phantogram setup and limits](docs/PHANTOGRAMS.md).
 
 ## Local/offline operation - technical reference
 

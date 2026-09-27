@@ -41,6 +41,12 @@ jobs:
           echo "$undo" | grep -q '"can_redo":true'
           redo="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"redo"}' http://127.0.0.1:8000/depth-map/edit)"
           echo "$redo" | grep -q '"can_undo":true'
+      - name: Verify phantogram preview and hosted memory guard
+        run: |
+          curl --fail --silent -b /tmp/aaf.cookies 'http://127.0.0.1:8000/special/phantogram?scope=preview' -o /tmp/aaf-phantogram.png
+          file /tmp/aaf-phantogram.png | grep -q 'PNG image data'
+          test "$(curl --silent -o /dev/null -w '%{http_code}' -b /tmp/aaf.cookies 'http://127.0.0.1:8000/special/phantogram?scope=full&dpi=600')" = 400
+          test "$(curl --silent -o /dev/null -w '%{http_code}' -b /tmp/aaf.cookies 'http://127.0.0.1:8000/special/phantogram?scope=preview&ground_plane=true&plane_corners=%5B%5B0.5%2C0.5%5D%2C%5B0.5%2C0.5%5D%2C%5B0.5%2C0.5%5D%2C%5B0.5%2C0.5%5D%5D')" = 400
       - name: Verify frontend is served
         run: |
           curl --fail --silent http://127.0.0.1:8000/ | grep -q '<!doctype html>'

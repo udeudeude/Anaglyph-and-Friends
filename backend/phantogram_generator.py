@@ -36,17 +36,18 @@ def warp_ground_plane_to_print(image, depth, corners, width, height):
     bottom-right, bottom-left. Source image and depth map use the same homography
     so all later physical phantogram geometry stays registered.
     """
-    if len(corners) != 4:
+    if not isinstance(corners, (list, tuple)) or len(corners) != 4:
         raise ValueError("Ground plane requires four corners")
     source_h, source_w = image.shape[:2]
-    source = []
-    for point in corners:
-        if len(point) != 2:
-            raise ValueError("Each ground-plane corner must contain x and y")
-        x = max(0.0, min(1.0, float(point[0]))) * max(1, source_w - 1)
-        y = max(0.0, min(1.0, float(point[1]))) * max(1, source_h - 1)
-        source.append([x, y])
-    source = np.asarray(source, dtype=np.float32)
+    try:
+        normalized = np.asarray(corners, dtype=np.float32)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Each ground-plane corner must contain x and y") from exc
+    if normalized.shape != (4, 2) or not np.all(np.isfinite(normalized)) or np.any(normalized < 0) or np.any(normalized > 1):
+        raise ValueError("Ground-plane corners must be four finite [x,y] points within the image")
+    if not cv2.isContourConvex(normalized) or cv2.contourArea(normalized, oriented=True) < 0.001:
+        raise ValueError("Mark four distinct, non-crossing corners clockwise: top-left, top-right, bottom-right, bottom-left")
+    source = normalized * np.array([max(1, source_w - 1), max(1, source_h - 1)], dtype=np.float32)
     target = np.asarray([
         [0.0, 0.0],
         [max(0, width - 1), 0.0],
@@ -122,22 +123,30 @@ def project_relief(image, depth, print_width_mm, print_height_mm, view_distance_
 
 def render_phantogram(image, depth, print_width_mm=203.2, print_height_mm=152.4,
                        view_distance_mm=508.0, eye_height_mm=355.6, ipd_mm=63.0,
-                       relief_mm=35.0, glasses='red-cyan', reverse_depth=False):
+                       relief_mm=35.0, glasses='red-cyan', reverse_depth=False,
+                       color_mode='luminance'):
+    if relief_mm >= eye_height_mm:
+        raise ValueError("Eye height must exceed the maximum relief height")
     left = project_relief(image, depth, print_width_mm, print_height_mm, view_distance_mm,
                           eye_height_mm, -ipd_mm / 2.0, relief_mm, reverse_depth)
     right = project_relief(image, depth, print_width_mm, print_height_mm, view_distance_mm,
                            eye_height_mm, ipd_mm / 2.0, relief_mm, reverse_depth)
-    out = np.zeros_like(image)
-    if glasses == 'red-green':
-        out[:, :, 2] = left[:, :, 2]
-        out[:, :, 1] = right[:, :, 1]
-    elif glasses == 'red-blue':
-        out[:, :, 2] = left[:, :, 2]
-        out[:, :, 0] = right[:, :, 0]
+    if color_mode not in ('luminance', 'color'):
+        raise ValueError("color_mode must be luminance or color")
+    if color_mode == 'luminance':
+        # Each filter needs an image of the same scene. Direct RGB channels can
+        # erase a strongly colored object from one eye entirely.
+        left_channel = cv2.cvtColor(left, cv2.COLOR_BGR2GRAY)
+        right_channel = cv2.cvtColor(right, cv2.COLOR_BGR2GRAY)
     else:
-        out[:, :, 2] = left[:, :, 2]
-        out[:, :, 1] = right[:, :, 1]
-        out[:, :, 0] = right[:, :, 0]
+        left_channel = left[:, :, 2]
+        right_channel = right
+    out = np.zeros_like(image)
+    out[:, :, 2] = left_channel
+    if glasses != 'red-blue':
+        out[:, :, 1] = right_channel if color_mode == 'luminance' else right_channel[:, :, 1]
+    if glasses != 'red-green':
+        out[:, :, 0] = right_channel if color_mode == 'luminance' else right_channel[:, :, 0]
     return out, left, right
 
 
