@@ -167,7 +167,7 @@ The current application includes:
 - random-dot autostereograms
 - pattern-based autostereograms
 - lenticular 3D interlacing plus printable LPI calibration bars
-- experimental AI relief phantogram workspace with physically calibrated PNG output
+- experimental phantogram workspace with model geometry, a geometric test block, and physical-size PNG output; photograph + AI depth remains approximate pending real camera/ground-plane reconstruction and print testing
 - experimental seven-scene View-Master reel builder with PDF/SVG print masters and imported-pair scenes
 - RGB Reveal / CMY Layers workspace for three-layer color-filter artwork
 - dual-projector polarized 3D workspace with independent alignment, crosstalk tests, projector windows, and exports
