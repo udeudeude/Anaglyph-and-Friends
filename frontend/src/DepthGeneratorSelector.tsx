@@ -24,5 +24,6 @@ export default function DepthGeneratorSelector({ selection, runtime, disabled, o
             </select>
         </label>
         <small>{context === 'reel' ? 'Applies to single-image scenes when you next build the reel.' : 'Applies to the next image you choose or paste. An existing depth map is kept.'} {selection === AUTOMATIC_DEPTH_GENERATOR ? `Automatic currently uses ${active.name}.` : `${active.name} will be used for the next generation.`}</small>
+        {selection === 'depth-anything-v3-small' && <small>V3 downloads about 105 MB the first time and needs more device memory. If it cannot run here, select Automatic and retry the same image.</small>}
     </details>
 }
