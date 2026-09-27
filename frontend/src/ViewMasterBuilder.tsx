@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { downloadViewMasterPdf } from './viewMasterPdf'
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from './browserDepth'
+import DepthGeneratorSelector from './DepthGeneratorSelector'
+import { AUTOMATIC_DEPTH_GENERATOR } from './depthGenerators'
+import type { DepthGeneratorSelection } from './depthGenerators'
 import type { StudioSource } from './studioAssets'
 import './styles/ViewMasterBuilder.css'
 import UiIcon from './UiIcon'
@@ -161,6 +164,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
     const [slots, setSlots] = useState<ReelSlot[]>(emptySlots)
     const [strength, setStrength] = useState(2)
     const [popOut, setPopOut] = useState(false)
+    const [depthGenerator, setDepthGenerator] = useState<DepthGeneratorSelection>(AUTOMATIC_DEPTH_GENERATOR)
     const [imageRotation, setImageRotation] = useState(0)
     const [building, setBuilding] = useState(false)
     const [progress, setProgress] = useState('')
@@ -252,7 +256,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
         setProgress(`Scene ${scene + 1} of 7: estimating depth…`)
         setProcessingStage('depth')
         if (useBrowserDepth) {
-            const generated = await generateBrowserDepth(file, message => setProgress(`Scene ${scene + 1} of 7: ${message}`))
+            const generated = await generateBrowserDepth(file, message => setProgress(`Scene ${scene + 1} of 7: ${message}`), depthGenerator)
             const depthForm = new FormData()
             depthForm.append('file', generated.file, generated.file.name)
             const depth = await fetch(`${apiUrl}/depth-map/ai-import`, { method: 'POST', body: depthForm, credentials: 'include', headers: VIEWMASTER_HEADERS })
@@ -261,7 +265,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                 throw new Error(body.error || `Scene ${scene + 1}: browser depth import failed`)
             }
         } else {
-            const depth = await fetch(`${apiUrl}/depth-map`, { credentials: 'include', headers: VIEWMASTER_HEADERS })
+            const depth = await fetch(`${apiUrl}/depth-map?generator=${depthGenerator}`, { credentials: 'include', headers: VIEWMASTER_HEADERS })
             if (!depth.ok) {
                 const body = await depth.json().catch(() => ({}))
                 throw new Error(body.error || `Scene ${scene + 1}: depth estimation failed`)
@@ -374,6 +378,8 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                     <label className="vmCheck"><span><strong>Pop out</strong><small>Generated single-image scenes only</small></span><input type="checkbox" checked={popOut} onChange={(event) => { setPopOut(event.target.checked); invalidateMaster() }} disabled={building} /></label>
                     <label className="vmRotation"><span>Image rotation</span><select value={imageRotation} onChange={(event) => { setImageRotation(Number(event.target.value)); invalidateMaster() }} disabled={building}><option value={0}>0° · upright at 3/9 o'clock</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option></select><small>Rotation advances once per scene around the reel; both eyes of each stereo pair always share the same orientation.</small></label>
                 </div>
+
+                <DepthGeneratorSelector selection={depthGenerator} runtime={useBrowserDepth ? 'browser' : 'local'} disabled={building} onChange={next => { setDepthGenerator(next); invalidateMaster() }} context="reel" />
 
                 <div className="vmBuildBar">
                     <div><strong>{readyCount}/7 scenes loaded · {generatedCount} generated · {importedPairCount} imported pairs</strong><span>{progress || 'Single-image scenes generate depth/stereo when you build. Imported pairs skip AI processing.'}</span></div>
