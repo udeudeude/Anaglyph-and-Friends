@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from "react";
 import "./styles/ImageUpload.css";
-import { generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
+import { describeBrowserDepthError, generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
+import type { BrowserDepthFailureInfo } from "./browserDepth";
 import UiIcon from "./UiIcon";
 
 type Props = {
@@ -16,11 +17,18 @@ type Props = {
 
 type DepthSource = 'ai' | 'imported';
 type DepthFit = 'crop' | 'fit' | 'stretch';
+type HostedDepthFailure = BrowserDepthFailureInfo | {
+    kind: 'server-import';
+    title: string;
+    detail: string;
+    technical: string;
+};
 
 function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onSourceFile, incomingSourceFile, onIncomingSourceConsumed }: Props) {
     const imageInputRef = useRef<HTMLInputElement>(null);
     const depthInputRef = useRef<HTMLInputElement>(null);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [sourceFile, setSourceFile] = useState<File | null>(null);
     const [depthMapUrl, setDepthMapUrl] = useState<string | null>(null);
     const [depthMapIsLoading, setDepthMapIsLoading] = useState<boolean>(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -32,6 +40,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [depthFit, setDepthFit] = useState<DepthFit>('crop');
     const [depthInvert, setDepthInvert] = useState(false);
     const [depthSourceMeta, setDepthSourceMeta] = useState('');
+    const [hostedDepthFailure, setHostedDepthFailure] = useState<HostedDepthFailure | null>(null);
     const [depthEditing, setDepthEditing] = useState(false);
     const [brushDirection, setBrushDirection] = useState<'lighter' | 'darker'>('lighter');
     const [brushSize, setBrushSize] = useState(5);
@@ -78,17 +87,40 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     };
 
     const generateHostedAiDepth = async (file: File, invert = depthInvert) => {
+        setIsChangeAllowed(false);
+        setIsDepthMapReadyStateLifter(false);
         setDepthMapIsLoading(true);
         setProcessingStage('depth');
-        setDepthSourceMeta('Loading Depth Anything V2 into this browser…');
+        setDepthSource('ai');
+        setHostedDepthFailure(null);
+        setDepthSourceMeta('Loading browser AI… first use may need a one-time model download');
+
+        let generated: Awaited<ReturnType<typeof generateBrowserDepth>>;
         try {
-            const generated = await generateBrowserDepth(file, setDepthSourceMeta);
+            generated = await generateBrowserDepth(file, setDepthSourceMeta);
+        } catch (error) {
+            console.error('Browser depth estimation failed', error);
+            const failure = describeBrowserDepthError(error);
+            const offlineDetail = typeof navigator !== 'undefined' && navigator.onLine === false
+                ? 'This browser currently reports that it is offline. Reconnect, then retry. The source image is still loaded.'
+                : failure.detail;
+            setHostedDepthFailure({ ...failure, detail: offlineDetail });
+            setDepthSourceMeta(failure.title);
+            setProcessingStage('error');
+            setIsChangeAllowed(true);
+            setDepthMapIsLoading(false);
+            return;
+        }
+
+        setDepthSourceMeta('AI depth calculated · saving it to this session…');
+        try {
             const form = new FormData();
             form.append('file', generated.file, generated.file.name);
             form.append('invert', String(invert));
             const response = await fetch(`${apiUrl}/depth-map/ai-import`, { method: 'POST', body: form, credentials: 'include' });
             const info = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(info.error || `Browser AI depth import failed: ${response.status}`);
+            setHostedDepthFailure(null);
             setDepthSource('ai');
             setDepthSourceMeta(`Depth Anything V2 · ${generated.engine} · runs on this device`);
             setCanUndoDepth(false);
@@ -97,13 +129,24 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setDepthHistoryCount(0);
             await fetchDepthMap();
         } catch (error) {
-            console.error('Browser depth estimation failed', error);
-            setDepthSourceMeta('Browser AI depth failed · import a depth map or stereo pair instead');
+            console.error('Browser depth was generated but could not be saved to the session', error);
+            setHostedDepthFailure({
+                kind: 'server-import',
+                title: 'Depth was calculated, but the app could not save it',
+                detail: 'The browser AI worked. The connection to Anaglyph & Friends failed afterward, so retrying should not require choosing the source image again.',
+                technical: error instanceof Error ? error.message : String(error),
+            });
+            setDepthSourceMeta('AI depth calculated · session save failed');
             setProcessingStage('error');
             setIsChangeAllowed(true);
         } finally {
             setDepthMapIsLoading(false);
         }
+    };
+
+    const retryHostedAiDepth = () => {
+        if (!sourceFile || !useBrowserDepth || depthMapIsLoading) return;
+        void generateHostedAiDepth(sourceFile, depthInvert);
     };
 
     const activateDepthSource = async (source: DepthSource, mode = depthFit, invert = depthInvert) => {
@@ -159,6 +202,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             const info = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(info.error || `Depth import failed: ${response.status}`);
             setHasImportedDepth(true);
+            setHostedDepthFailure(null);
             setDepthSource('imported');
             setDepthSourceMeta(`${info.depth_width} × ${info.depth_height} imported → ${info.source_width} × ${info.source_height} source · ${depthFit === 'crop' ? 'crop to fill' : depthFit === 'fit' ? 'fit inside' : 'stretch'}`);
             setCanUndoDepth(false);
@@ -317,11 +361,13 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         setProcessingStage('uploading');
         replaceObjectUrl(setDepthMapUrl, depthMapUrl, null);
         replaceObjectUrl(setImageUrl, imageUrl, file);
+        setSourceFile(file);
         setDepthSource('ai');
         setHasImportedDepth(false);
         setDepthFit('crop');
         setDepthInvert(false);
         setDepthSourceMeta('Depth Anything V2 estimation');
+        setHostedDepthFailure(null);
         setDepthEditing(false);
         setEditBlack(0);
         setEditWhite(100);
@@ -512,7 +558,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                     disabled={!depthMapUrl}
                     title={depthMapUrl ? (depthEditing ? 'Paint directly on the active depth map' : 'Click to inspect depth map') : undefined}
                 >
-                    {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className="depthPlaceholder">{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : (depthSourceMeta || 'Depth estimation appears here')}</div>}
+                    {depthMapUrl ? <img src={depthMapUrl} alt="Depth map" draggable={false} /> : <div className={`depthPlaceholder ${hostedDepthFailure ? 'failed' : ''}`}>{depthMapIsLoading ? (depthSourceMeta || 'Estimating depth…') : hostedDepthFailure ? hostedDepthFailure.title : (depthSourceMeta || 'Depth estimation appears here')}</div>}
                     {depthEditing && depthSelection && <span className="depthSelectionRect" style={{
                         left: `${Math.min(depthSelection.x0, depthSelection.x1) * 100}%`,
                         top: `${Math.min(depthSelection.y0, depthSelection.y1) * 100}%`,
@@ -552,6 +598,12 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                     <button className="resetDepthEdits" onClick={resetDepthEdits} disabled={!isChangeAllowed || (!canUndoDepth && depthHistoryPosition === 0)}><UiIcon name="reset" /> Reset depth edits</button>
                 </div>}
             </div>
+            {hostedDepthFailure && useBrowserDepth && sourceFile && !depthMapUrl && <div className="browserDepthFailure" role="alert">
+                <div><strong>{hostedDepthFailure.title}</strong><span>{hostedDepthFailure.detail}</span></div>
+                <button type="button" onClick={retryHostedAiDepth} disabled={depthMapIsLoading}><UiIcon name="reset" /> Retry AI depth</button>
+                <small>You do not need to choose the image again.</small>
+                <details><summary>Technical details</summary><code>{hostedDepthFailure.technical}</code></details>
+            </div>}
             {depthMapUrl && !depthEditing && <button className="depthEditToggle" onClick={() => setDepthEditing(true)} disabled={!isChangeAllowed}><UiIcon name="edit" /> Edit depth map</button>}
 
             {imageUrl && <div className="depthSourceControls">
@@ -559,7 +611,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                 <button className="depthImportAction" onClick={() => depthInputRef.current?.click()} disabled={!isChangeAllowed}>{hasImportedDepth ? 'Replace imported map' : 'Import depth map'}</button>
                 {depthSource === 'imported' && <label><span>Aspect matching</span><select value={depthFit} disabled={!isChangeAllowed} onChange={(e) => { const next = e.target.value as DepthFit; setDepthFit(next); void activateDepthSource('imported', next, depthInvert); }}><option value="crop">Crop to fill</option><option value="fit">Fit inside</option><option value="stretch">Stretch to image</option></select></label>}
                 <label className="depthCheck"><input type="checkbox" checked={depthInvert} disabled={!isChangeAllowed} onChange={(e) => { const next = e.target.checked; setDepthInvert(next); void activateDepthSource(depthSource, depthFit, next); }} /> Invert near / far</label>
-                <p>Imported maps may have different dimensions or aspect ratios. PNG/JPEG/TIFF and float32 .npy are accepted.</p>
+                <p>{useBrowserDepth && depthSource === 'ai' ? 'On the hosted app, AI depth runs in this browser. The first successful use may need to download the AI model; later uses are usually faster.' : 'Imported maps may have different dimensions or aspect ratios. PNG/JPEG/TIFF and float32 .npy are accepted.'}</p>
                 {depthSourceMeta && <div className="depthSourceMeta">{depthSourceMeta}</div>}
             </div>}
 
