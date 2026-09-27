@@ -28,6 +28,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-anaglyph-and-friends")
 KERNEL_WIDTH = 15
 PREVIEW_MAX_DIMENSION = 1600
 DEPTH_EDIT_HISTORY_LIMIT = 40
+RECOMMENDED_LOCAL_DEPTH_GENERATOR = "depth-anything-v2-small"
 SESSION_DATA_FOLDER = "resources/session_data"
 os.makedirs(SESSION_DATA_FOLDER, exist_ok=True)
 
@@ -229,7 +230,16 @@ def save_active_depth(depth_map, editing=False):
     clear_stereo_cache()
 
 
-def get_ai_depth():
+def resolve_local_depth_generator(selection):
+    if selection == "automatic":
+        return RECOMMENDED_LOCAL_DEPTH_GENERATOR
+    if selection != RECOMMENDED_LOCAL_DEPTH_GENERATOR:
+        raise ValueError(f"Unsupported local depth generator: {selection}")
+    return selection
+
+
+def get_ai_depth(generator="automatic"):
+    resolve_local_depth_generator(generator)
     ai_path = session_path("depth_map_ai.npy")
     if os.path.exists(ai_path):
         return np.load(ai_path, allow_pickle=False).astype(np.float32)
@@ -245,19 +255,20 @@ def get_ai_depth():
     return depth_map
 
 
-def ensure_depth_maps():
+def ensure_depth_maps(generator="automatic"):
+    resolve_local_depth_generator(generator)
     depth_path = session_path("depth_map.npy")
     coloured_path = session_path("depth_map_coloured.jpg")
     gray16_path = session_path("depth_map_gray16.png")
     if os.path.exists(depth_path) and os.path.exists(coloured_path) and os.path.exists(gray16_path):
         return
-    save_active_depth(get_ai_depth())
+    save_active_depth(get_ai_depth(generator))
 
 
 @app.route("/depth-map", methods=["GET"])
 def get_depth_map():
     try:
-        ensure_depth_maps()
+        ensure_depth_maps(request.args.get("generator", "automatic"))
         return send_from_directory(SESSION_DATA_FOLDER, os.path.basename(session_path("depth_map_coloured.jpg")), request.environ)
     except Exception as e:
         return jsonify({"error": str(e)}), 400

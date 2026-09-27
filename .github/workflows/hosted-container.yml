@@ -32,6 +32,9 @@ jobs:
           docker cp aaf-hosted:/tmp/depth.png /tmp/depth.png
           curl --fail --silent -c /tmp/aaf.cookies -F "file=@/tmp/source.png" http://127.0.0.1:8000/image >/dev/null
           curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -F "file=@/tmp/depth.png" http://127.0.0.1:8000/depth-map/ai-import >/dev/null
+          curl --fail --silent -b /tmp/aaf.cookies 'http://127.0.0.1:8000/depth-map?generator=automatic' >/dev/null
+          curl --fail --silent -b /tmp/aaf.cookies 'http://127.0.0.1:8000/depth-map?generator=depth-anything-v2-small' >/dev/null
+          test "$(curl --silent -o /dev/null -w '%{http_code}' -b /tmp/aaf.cookies 'http://127.0.0.1:8000/depth-map?generator=depth-pro')" = 400
           edit="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"brush","points":[{"x":0.5,"y":0.5}],"radius":0.1,"delta":0.1}' http://127.0.0.1:8000/depth-map/edit)"
           echo "$edit" | grep -q '"can_undo":true'
           undo="$(curl --fail --silent -b /tmp/aaf.cookies -c /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"operation":"undo"}' http://127.0.0.1:8000/depth-map/edit)"

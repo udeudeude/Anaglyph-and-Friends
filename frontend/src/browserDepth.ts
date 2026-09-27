@@ -1,3 +1,6 @@
+import { AUTOMATIC_DEPTH_GENERATOR, resolveDepthGenerator } from './depthGenerators'
+import type { DepthGeneratorSelection } from './depthGenerators'
+
 const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/+esm'
 const MODEL_ID = 'onnx-community/depth-anything-v2-small'
 
@@ -225,7 +228,11 @@ export const hostedBrowserDepthEnabled = () => {
     return !['localhost', '127.0.0.1', '::1'].includes(host)
 }
 
-export async function generateBrowserDepth(file: File, progress?: Progress): Promise<{ file: File; engine: string }> {
+export async function generateBrowserDepth(file: File, progress?: Progress, selection: DepthGeneratorSelection = AUTOMATIC_DEPTH_GENERATOR): Promise<{ file: File; engine: string; generator: string }> {
+    const generator = resolveDepthGenerator(selection, 'browser')
+    // V2's ONNX pipeline and its near-is-high output are the verified adapter.
+    // Other models need their own preprocessing and depth-convention adapter.
+    if (generator.id !== 'depth-anything-v2-small') throw new Error(`No browser adapter for ${generator.name}`)
     const estimator = await createEstimator(progress)
     progress?.(`Estimating depth on this device (${estimatorEngine})…`)
     const sourceUrl = URL.createObjectURL(file)
@@ -247,6 +254,7 @@ export async function generateBrowserDepth(file: File, progress?: Progress): Pro
         return {
             file: new File([blob], 'browser-depth-anything-v2.png', { type: 'image/png' }),
             engine: estimatorEngine,
+            generator: generator.name,
         }
     } finally {
         URL.revokeObjectURL(sourceUrl)
