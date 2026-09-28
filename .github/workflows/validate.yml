@@ -23,6 +23,7 @@ jobs:
       - run: node src/regression_contract.test.mjs
       - run: node --experimental-strip-types src/depthGenerators.test.mjs
       - run: node --experimental-strip-types src/modelPhantogram.test.mjs
+      - run: node --experimental-strip-types src/phantogramDiagnosticSheet.test.mjs
       - run: npm run lint
       - run: npm run build
 

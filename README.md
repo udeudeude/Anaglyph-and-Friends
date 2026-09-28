@@ -344,6 +344,7 @@ The current code intentionally leaves physical calibration items explicit rather
   - calibrated ground-plane mode lets you mark four corners of a photographed rectangular plane and perspective-rectifies that plane to the physical print before stereo projection
   - configurable print size, DPI, viewing distance, eye height, eye separation, maximum relief, and depth direction
   - red/cyan, red/green, and red/blue output
+  - hollow wireframe cube and two tetrahedron orientations on one US Letter landscape vector PDF, with three labeled eye-height or viewing-distance candidates and a 50 mm print check
   - print-ready PNG with physical DPI metadata
   - downloadable exact **100 mm calibration ruler** for checking printer scaling
   - experimental: arbitrary photographs are interpreted as textured reliefs; calibrated ground-plane rectification is available when the photograph contains a known rectangular plane
@@ -457,7 +458,7 @@ The newer technique renderers build on the same depth map:
 - autostereograms vary repeating-pattern separation by depth;
 - wiggle-grams synthesize a sequence of virtual camera offsets;
 - lenticular output synthesizes several viewpoints and interlaces them according to printer DPI and calibrated lenticular pitch;
-- Phantograms project a 3D model from independent left/right eye positions onto the print plane. A built-in test block helps check the projection. Photograph + AI depth modes can make an approximate height-field study, but relative depth alone does not reconstruct the original camera or an object's true position above a real ground plane. The marked-plane mode requires four user-selected corners. See [phantogram setup and limits](docs/PHANTOGRAMS.md).
+- Phantograms project a 3D model from independent left/right eye positions onto the print plane. A built-in wireframe comparison sheet helps check three viewing positions on one print. Photograph + AI depth modes can make an approximate height-field study, but relative depth alone does not reconstruct the original camera or an object's true position above a real ground plane. The marked-plane mode requires four user-selected corners. See [phantogram setup and limits](docs/PHANTOGRAMS.md).
 
 ## Local/offline operation - technical reference
 

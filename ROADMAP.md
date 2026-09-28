@@ -67,6 +67,7 @@ Implemented:
 - 150 / 300 / 600 DPI print-ready PNG output with embedded physical DPI metadata
 - downloadable exact 100 mm ruler for verifying printer scaling
 - regression tests and geometric invariants, including exact identity at zero relief
+- a vector US Letter landscape diagnostic sheet: hollow wireframe cube, point-near tetrahedron, face-near tetrahedron, three labeled eye-height or distance candidates, and a 50 mm ruler
 
 The workspace also now includes a **calibrated ground-plane mode**. The user marks the four corners of a photographed rectangular plane; source image and depth are rectified together so the chosen rectangle becomes the physical print plane before the eye projections are generated.
 
@@ -74,7 +75,7 @@ Still worth developing after physical testing:
 
 - richer ground-plane calibration such as known ruler/reference points beyond the four corners
 - optional left/right free-view output in addition to anaglyph
-- print-page layouts with margins, labels, and viewing-position instructions
+- additional print-page layouts for imported models and photograph-based reliefs
 - calibration against real printed examples to refine useful default eye height, viewing distance, and relief limits
 
 ## Print calibration & setup — implemented simple-first workspace
@@ -167,7 +168,7 @@ The current application includes:
 - random-dot autostereograms
 - pattern-based autostereograms
 - lenticular 3D interlacing plus printable LPI calibration bars
-- experimental phantogram workspace with uniformly scaled model geometry, a geometric test cube, and physical-size PNG output; photograph + AI depth remains approximate pending real camera/ground-plane reconstruction and print testing
+- experimental phantogram workspace with uniformly scaled imported model geometry, a vector wireframe comparison PDF, and physical-size PNG model output; photograph + AI depth remains approximate pending real camera/ground-plane reconstruction and print testing
 - experimental seven-scene View-Master reel builder with PDF/SVG print masters and imported-pair scenes
 - RGB Reveal / CMY Layers workspace for three-layer color-filter artwork
 - dual-projector polarized 3D workspace with independent alignment, crosstalk tests, projector windows, and exports
