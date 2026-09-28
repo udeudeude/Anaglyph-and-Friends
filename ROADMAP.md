@@ -71,6 +71,8 @@ Implemented:
 
 The workspace also now includes a **calibrated ground-plane mode**. The user marks the four corners of a photographed rectangular plane; source image and depth are rectified together so the chosen rectangle becomes the physical print plane before the eye projections are generated.
 
+A printable US Letter reference provides an exact 8 × 6 inch border and 50 mm check rule for photographing an object on a known plane. It calibrates the plane, not the object height or source-camera pose; photo-based output remains approximate.
+
 Still worth developing after physical testing:
 
 - richer ground-plane calibration such as known ruler/reference points beyond the four corners

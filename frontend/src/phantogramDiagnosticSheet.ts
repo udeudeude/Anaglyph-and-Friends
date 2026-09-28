@@ -26,6 +26,7 @@ const join = (parts: Uint8Array[]) => {
 }
 const pdfObject = (id: number, value: string) => encode(`${id} 0 obj\n${value}\nendobj\n`)
 const pdfText = (value: string) => value.replace(/[\\()]/g, '\\$&')
+const svgText = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 const mmX = (x: number) => mmPt(x + SHEET_WIDTH_MM / 2)
 const svgX = (x: number) => (x + SHEET_WIDTH_MM / 2).toFixed(3)
 const svgY = (y: number) => (SHEET_HEIGHT_MM - y).toFixed(3)
@@ -115,7 +116,7 @@ export function renderPhantogramDiagnosticSheet(settings: ModelPhantogramSetting
     const svg: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${SHEET_WIDTH_MM}mm" height="${SHEET_HEIGHT_MM}mm" viewBox="0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}">`, '<rect width="100%" height="100%" fill="white"/>']
     const pdf: string[] = ['0 0 0 RG', '0 0 0 rg']
     const text = (x: number, y: number, value: string, size = 3.2, bold = false) => {
-        svg.push(`<text x="${svgX(x)}" y="${svgY(y)}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${bold ? 700 : 400}" fill="#111">${value}</text>`)
+        svg.push(`<text x="${svgX(x)}" y="${svgY(y)}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${bold ? 700 : 400}" fill="#111">${svgText(value)}</text>`)
         pdf.push(`BT /F1 ${mmPt(size)} Tf ${mmX(x)} ${mmPt(y)} Td (${pdfText(value)}) Tj ET`)
     }
     const rule = (a: [number, number], b: [number, number], width = 0.25) => {

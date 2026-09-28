@@ -40,7 +40,7 @@ function App() {
     const [isDepthMapReady, setIsDepthMapReady] = useState<boolean>(false)
     const [isChangeAllowed, setIsChangeAllowed] = useState<boolean>(true)
     const [processingStage, setProcessingStage] = useState<ProcessingStage>('idle')
-    const [sidebarWidth, setSidebarWidth] = useState<number>(() => Number(localStorage.getItem('aaf-sidebar-width')) || 280)
+    const [sidebarWidth, setSidebarWidth] = useState<number>(280)
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => localStorage.getItem('aaf-sidebar-collapsed') === 'true')
     const pairReady = !!stereoPair.left && !!stereoPair.right
     const currentStudioSource: StudioSource | null = studioInputMode === 'single' ? (singleSourceFile ? { kind: 'single', file: singleSourceFile } : null) : (pairReady ? { kind: 'pair', left: stereoPair.left as File, right: stereoPair.right as File } : null)
@@ -52,7 +52,7 @@ function App() {
     const openInStudio = (source: StudioSource) => { setStudioSurface('editor'); if (source.kind === 'single') { setStudioInputMode('single'); setSingleSourceFile(source.file); setIncomingSingleFile(source.file); setIsDepthMapReady(false); setProcessingStage('uploading') } else { setStudioInputMode('pair'); setStereoPair({ left: source.left, right: source.right }); setProcessingStage('ready') } setWorkspaceMode('studio') }
     const openPrintPage = () => { setPrintPageIncoming(null); setStudioSurface('printpage') }
     const sendOutputToPrintPage = (incoming: PrintPageIncomingArtwork) => { setPrintPageIncoming(incoming); setStudioSurface('printpage') }
-    const beginResize = (event: ReactMouseEvent<HTMLDivElement>) => { if (sidebarCollapsed) return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; const move = (moveEvent: MouseEvent) => { const next = Math.max(220, Math.min(430, startWidth + moveEvent.clientX - startX)); setSidebarWidth(next); localStorage.setItem('aaf-sidebar-width', String(next)) }; const stop = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop); document.body.classList.remove('resizingRail') }; document.body.classList.add('resizingRail'); document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop) }
+    const beginResize = (event: ReactMouseEvent<HTMLDivElement>) => { if (sidebarCollapsed) return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; const move = (moveEvent: MouseEvent) => { const next = Math.max(220, Math.min(430, startWidth + moveEvent.clientX - startX)); setSidebarWidth(next) }; const stop = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop); document.body.classList.remove('resizingRail') }; document.body.classList.add('resizingRail'); document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop) }
     const workspaceStyle = { '--sidebar-width': `${sidebarWidth}px` } as CSSProperties
     const visibleStageLabel = hostedEdition && processingStage === 'ready'
         ? 'Ready · browser AI + hosted rendering'

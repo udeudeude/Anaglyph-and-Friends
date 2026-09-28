@@ -68,7 +68,7 @@
 
 /* Focused depth editing: entering Edit depth map moves the work into a large canvas automatically. */
 .depthWorkArea:not(.active){display:contents}
-.depthWorkArea.active{position:fixed;z-index:1200;top:82px;right:20px;bottom:20px;left:calc(var(--sidebar-width,320px) + 24px);display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;border:1px solid #31557d;border-radius:14px;background:#071321;box-shadow:0 28px 90px rgba(0,0,0,.58)}
+.depthWorkArea.active{position:fixed;z-index:1200;top:82px;right:20px;bottom:20px;left:20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;border:1px solid #31557d;border-radius:14px;background:#071321;box-shadow:0 28px 90px rgba(0,0,0,.58)}
 .depthWorkHeader{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid #203853}
 .depthWorkHeader>div{display:flex;align-items:center;gap:9px;color:#bad0e7}
 .depthWorkHeader>div>span{display:flex;flex-direction:column;gap:2px}
