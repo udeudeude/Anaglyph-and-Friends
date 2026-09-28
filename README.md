@@ -534,4 +534,4 @@ ROADMAP.md                      deliberately deferred and potential future techn
 
 ## Future work
 
-See **[ROADMAP.md](ROADMAP.md)**. Larger deliberately deferred projects include editable depth maps, packaging as a double-clickable macOS application, and layered 3D compositing. Phantogram follow-up work now centers on a traditional calibrated ground-plane mode and physical-print testing. Other possible additions include MPO/stereo JPEG, Pulfrich animation, additional display/viewer profiles, additional historical stereograph templates, and saved lenticular calibration profiles.
+See **[ROADMAP.md](ROADMAP.md)**. The core editable depth map, layered compositor, Pulfrich animation, and marked ground-plane phantogram are implemented. Follow-up work includes a self-contained macOS package, stronger source-camera calibration for photograph-based phantograms, and physical-print validation. Other possible additions include MPO/stereo JPEG, additional display/viewer profiles, historical stereograph templates, and measured lenticular profiles.

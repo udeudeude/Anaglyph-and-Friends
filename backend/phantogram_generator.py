@@ -1,7 +1,8 @@
 """Physical-plane phantogram projection.
 
 Coordinates are millimetres. The print lies on z=0, x spans its width, and y runs
-from the near edge toward the far edge. The viewer is at y=-view_distance.
+from the near edge (bottom of the upright print) toward the far edge (top).
+The viewer is at y=-view_distance.
 Depth is interpreted as relief height above the print, not as an arbitrary 2-D warp.
 """
 import cv2
@@ -89,8 +90,8 @@ def project_relief(image, depth, print_width_mm, print_height_mm, view_distance_
         tile_depth = d[y0:y1]
         z = tile_depth * relief_mm
         ys = np.linspace(
-            print_height_mm * y0 / max(1, h - 1),
-            print_height_mm * (y1 - 1) / max(1, h - 1),
+            print_height_mm * (1 - y0 / max(1, h - 1)),
+            print_height_mm * (1 - (y1 - 1) / max(1, h - 1)),
             y1 - y0,
             dtype=np.float32,
         )[:, None]
@@ -100,7 +101,7 @@ def project_relief(image, depth, print_width_mm, print_height_mm, view_distance_
         px = eye_x_mm + t * (xs - eye_x_mm)
         py = eye_y + t * (ys - eye_y)
         u = np.rint((px / print_width_mm + 0.5) * (w - 1)).astype(np.int32)
-        v = np.rint((py / print_height_mm) * (h - 1)).astype(np.int32)
+        v = np.rint((1 - py / print_height_mm) * (h - 1)).astype(np.int32)
         valid = (u >= 0) & (u < w) & (v >= 0) & (v < h)
         if not np.any(valid):
             continue

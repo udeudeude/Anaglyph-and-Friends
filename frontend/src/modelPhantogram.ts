@@ -22,7 +22,7 @@ export function makePhantogramTestBlock(): ModelMesh {
     for (const { corners: [a, b, c, d], color } of faces) {
         triangles.push({ a, b, c, color }, { a, b: c, c: d, color })
     }
-    return { name: 'Geometric print test block', triangles }
+    return { name: 'Geometric print test cube', triangles }
 }
 
 export type ModelPhantogramSettings = {
@@ -254,9 +254,17 @@ export function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSetti
     const pageWidth = settings.widthIn * 25.4, pageHeight = settings.heightIn * 25.4
     const widthMm = pageWidth * settings.footprintPct / 100
     const depthMm = pageHeight * settings.footprintPct / 100
-    // A single horizontal scale preserves the model's footprint aspect ratio.
-    const preferredScale = Math.min(widthMm / Math.max(1e-9, maxX - minX), depthMm / Math.max(1e-9, maxY - minY))
-    const sz = settings.reliefMm / Math.max(1e-9, maxZ - minZ)
+    // A phantogram must depict the *same solid* seen from each eye. Scaling
+    // height separately from the footprint turned the unit test cube into a
+    // shallow slab even though its two eye projections were mathematically
+    // correct. Treat height and footprint as upper bounds on one 3D scale.
+    // Zero requested height deliberately flattens the model onto the paper.
+    const flat = settings.reliefMm === 0
+    const preferredScale = Math.min(
+        widthMm / Math.max(1e-9, maxX - minX),
+        depthMm / Math.max(1e-9, maxY - minY),
+        flat || maxZ === minZ ? Infinity : settings.reliefMm / (maxZ - minZ),
+    )
     const cx = (minX + maxX) / 2
     const cy = (minY + maxY) / 2
     const eyeZ = settings.eyeHeightIn * 25.4, eyeY = -settings.viewDistanceIn * 25.4
@@ -269,7 +277,7 @@ export function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSetti
     const placement = (scale: number) => {
         let minCx = -Infinity, maxCx = Infinity, minCy = -Infinity, maxCy = Infinity
         for (const tri of rotated) for (const p of [tri.a, tri.b, tri.c]) {
-            const z = Math.max(0, (p[2] - minZ) * sz)
+            const z = flat ? 0 : Math.max(0, (p[2] - minZ) * scale)
             const t = eyeZ / (eyeZ - z)
             const dx = (p[0] - cx) * scale, dy = (p[1] - cy) * scale
             const yOffset = (1 - t) * eyeY
@@ -288,7 +296,6 @@ export function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSetti
     let scale = preferredScale
     let center = placement(scale)
     if (!center) {
-        if (!placement(0)) throw new Error('Model height is too large for this print and eye position; reduce height or change the physical setup')
         let lower = 0, upper = scale
         for (let i = 0; i < 18; i += 1) {
             const middle = (lower + upper) / 2
@@ -299,7 +306,7 @@ export function prepareTriangles(mesh: ModelMesh, settings: ModelPhantogramSetti
         center = placement(scale)
     }
     if (!center) throw new Error('Could not fit both eye projections on the print')
-    const map = (p: Vec3): Vec3 => [(p[0] - cx) * scale + center.x, (p[1] - cy) * scale + center.y, Math.max(0, (p[2] - minZ) * sz)]
+    const map = (p: Vec3): Vec3 => [(p[0] - cx) * scale + center.x, (p[1] - cy) * scale + center.y, flat ? 0 : Math.max(0, (p[2] - minZ) * scale)]
     return rotated.map(tri => ({ ...tri, a: map(tri.a), b: map(tri.b), c: map(tri.c) }))
 }
 
@@ -321,14 +328,19 @@ export function projectPointToPrint(point: Vec3, eye: Vec3): { x: number; y: num
     }
 }
 
-function renderEye(triangles: ModelTriangle[], eye: Vec3, widthMm: number, heightMm: number, pixelWidth: number, pixelHeight: number): ImageData {
+export function printPixelCoordinates(print: { x: number; y: number }, widthMm: number, heightMm: number, pixelWidth: number, pixelHeight: number) {
+    // The top of an upright print is the far edge; the bottom is nearest the eyes.
+    return { x: (print.x / widthMm + 0.5) * (pixelWidth - 1), y: (1 - print.y / heightMm) * (pixelHeight - 1) }
+}
+
+export function renderEye(triangles: ModelTriangle[], eye: Vec3, widthMm: number, heightMm: number, pixelWidth: number, pixelHeight: number): ImageData {
     const pixels = new Uint8ClampedArray(pixelWidth * pixelHeight * 4)
     const depth = new Float32Array(pixelWidth * pixelHeight)
     depth.fill(Number.POSITIVE_INFINITY)
     for (let i = 0; i < pixelWidth * pixelHeight; i += 1) { pixels[i * 4] = 255; pixels[i * 4 + 1] = 255; pixels[i * 4 + 2] = 255; pixels[i * 4 + 3] = 255 }
     const project = (p: Vec3) => {
         const print = projectPointToPrint(p, eye)
-        return print && { x: (print.x / widthMm + 0.5) * (pixelWidth - 1), y: (print.y / heightMm) * (pixelHeight - 1), d: print.distance }
+        return print && { ...printPixelCoordinates(print, widthMm, heightMm, pixelWidth, pixelHeight), d: print.distance }
     }
     const light = normalize([-0.35, -0.55, 1])
     for (const tri of triangles) {

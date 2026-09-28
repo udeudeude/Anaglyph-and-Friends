@@ -53,8 +53,8 @@ def main():
         else:
             raise AssertionError('Degenerate ground-plane corners were accepted')
 
-    # A raised point must project farther from each eye, and left-eye print
-    # position must be to the right of its right-eye counterpart (pop-out).
+    # A raised point projects toward the far (top) edge of an upright print;
+    # the left-eye image moves right relative to the right-eye image.
     marker = np.full((h, w, 3), 255, dtype=np.uint8)
     marker[34:46, 54:66] = 0
     raised = np.zeros((h, w), dtype=np.float32)
@@ -69,7 +69,7 @@ def main():
     right_x, right_y = dark_center_x(right_mark)
     expected_separation = (35 / (355.6 - 35)) * 63 / 254 * (w - 1)
     assert abs((left_x - right_x) - expected_separation) < 1.2
-    assert left_y > 40 and right_y > 40
+    assert left_y < 40 and right_y < 40
 
     anaglyph, l, r = render_phantogram(image, depth, relief_mm=35)
     assert anaglyph.shape == image.shape and l.shape == image.shape and r.shape == image.shape
