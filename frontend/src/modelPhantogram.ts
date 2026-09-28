@@ -42,6 +42,23 @@ export type ModelPhantogramSettings = {
 
 type Vec3 = [number, number, number]
 type Mat4 = number[]
+type GlbNode = {
+    matrix?: number[]
+    translation?: Vec3
+    scale?: Vec3
+    rotation?: [number, number, number, number]
+    mesh?: number
+    children?: number[]
+}
+type GlbDocument = {
+    accessors?: { bufferView?: number; componentType: number; type: string; count: number; byteOffset?: number }[]
+    bufferViews?: { byteStride?: number; byteOffset?: number }[]
+    materials?: { pbrMetallicRoughness?: { baseColorFactor?: number[] } }[]
+    scene?: number
+    scenes?: { nodes?: number[] }[]
+    nodes?: GlbNode[]
+    meshes?: { primitives?: { mode?: number; attributes?: { POSITION: number }; indices?: number; material?: number }[] }[]
+}
 
 const identity = (): Mat4 => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const multiply = (a: Mat4, b: Mat4): Mat4 => {
@@ -59,7 +76,7 @@ const transformPoint = (m: Mat4, p: Vec3): Vec3 => {
         m[8] * x + m[9] * y + m[10] * z + m[11],
     ]
 }
-const nodeMatrix = (node: any): Mat4 => {
+const nodeMatrix = (node: GlbNode): Mat4 => {
     if (Array.isArray(node.matrix) && node.matrix.length === 16) {
         const c = node.matrix as number[]
         return [c[0], c[4], c[8], c[12], c[1], c[5], c[9], c[13], c[2], c[6], c[10], c[14], c[3], c[7], c[11], c[15]]
@@ -138,13 +155,13 @@ function parseGlb(buffer: ArrayBuffer, name: string): ModelMesh {
     const view = new DataView(buffer)
     if (view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2) throw new Error('Only GLB 2.0 files are supported')
     let offset = 12
-    let json: any = null
+    let json: GlbDocument | null = null
     let binary: ArrayBuffer | null = null
     while (offset + 8 <= buffer.byteLength) {
         const length = view.getUint32(offset, true)
         const type = view.getUint32(offset + 4, true)
         const start = offset + 8
-        if (type === 0x4e4f534a) json = JSON.parse(decodeText(new Uint8Array(buffer, start, length)))
+        if (type === 0x4e4f534a) json = JSON.parse(decodeText(new Uint8Array(buffer, start, length))) as GlbDocument
         if (type === 0x004e4942) binary = buffer.slice(start, start + length)
         offset = start + length
     }
@@ -156,8 +173,8 @@ function parseGlb(buffer: ArrayBuffer, name: string): ModelMesh {
         5125: { bytes: 4, read: o => binView.getUint32(o, true) }, 5126: { bytes: 4, read: o => binView.getFloat32(o, true) },
     }
     const typeCount: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }
-    const accessorValues = (index: number): number[][] => {
-        const accessor = json.accessors?.[index]
+    const accessorValues = (index: number | undefined): number[][] => {
+        const accessor = index === undefined ? undefined : json.accessors?.[index]
         if (!accessor || accessor.bufferView === undefined) throw new Error('Sparse or missing GLB accessors are not supported')
         const bufferView = json.bufferViews?.[accessor.bufferView]
         const info = componentInfo[accessor.componentType]
@@ -167,13 +184,13 @@ function parseGlb(buffer: ArrayBuffer, name: string): ModelMesh {
         const base = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0)
         return Array.from({ length: accessor.count }, (_, item) => Array.from({ length: components }, (_, component) => info.read(base + item * stride + component * info.bytes)))
     }
-    const materials = (json.materials || []).map((material: any) => {
+    const materials = (json.materials || []).map(material => {
         const f = material.pbrMetallicRoughness?.baseColorFactor || [0.75, 0.78, 0.82, 1]
         return [clampByte(f[0] * 255), clampByte(f[1] * 255), clampByte(f[2] * 255)] as [number, number, number]
     })
     const triangles: ModelTriangle[] = []
     const sceneIndex = json.scene ?? 0
-    const roots = json.scenes?.[sceneIndex]?.nodes || json.nodes?.map((_node: any, index: number) => index) || []
+    const roots = json.scenes?.[sceneIndex]?.nodes || json.nodes?.map((_node, index) => index) || []
     const visit = (nodeIndex: number, parent: Mat4) => {
         const node = json.nodes?.[nodeIndex] || {}
         const world = multiply(parent, nodeMatrix(node))
@@ -188,7 +205,7 @@ function parseGlb(buffer: ArrayBuffer, name: string): ModelMesh {
                     return [x, -z || 0, y] as Vec3
                 })
                 const indices = primitive.indices !== undefined ? accessorValues(primitive.indices).map(v => v[0]) : positions.map((_v, index) => index)
-                const color = materials[primitive.material] || [190, 198, 210]
+                const color = materials[primitive.material ?? -1] || [190, 198, 210]
                 for (let i = 0; i + 2 < indices.length; i += 3) {
                     const a = positions[indices[i]], b = positions[indices[i + 1]], c = positions[indices[i + 2]]
                     if (a && b && c) triangles.push({ a, b, c, color })
