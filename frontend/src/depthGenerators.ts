@@ -31,3 +31,10 @@ export function resolveDepthGenerator(selection: DepthGeneratorSelection, runtim
     }
     return generator
 }
+
+export function activeDepthMapPath(selection: DepthGeneratorSelection, runtime: DepthRuntime): string {
+    resolveDepthGenerator(selection, runtime)
+    // Browser inference has already imported its output into the session.
+    // The server's generator query only understands local adapters.
+    return runtime === 'browser' ? '/depth-map' : `/depth-map?generator=${selection}`
+}

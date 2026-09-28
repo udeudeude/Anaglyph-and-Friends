@@ -238,10 +238,10 @@ def resolve_local_depth_generator(selection):
     return selection
 
 
-def get_ai_depth(generator="automatic"):
+def get_ai_depth(generator="automatic", force=False):
     resolve_local_depth_generator(generator)
     ai_path = session_path("depth_map_ai.npy")
-    if os.path.exists(ai_path):
+    if os.path.exists(ai_path) and not force:
         return np.load(ai_path, allow_pickle=False).astype(np.float32)
     if os.getenv("AAF_BROWSER_DEPTH", "false").lower() == "true":
         raise RuntimeError("Hosted mode expects Depth Anything V2 to run in the user's browser")
@@ -270,6 +270,21 @@ def get_depth_map():
     try:
         ensure_depth_maps(request.args.get("generator", "automatic"))
         return send_from_directory(SESSION_DATA_FOLDER, os.path.basename(session_path("depth_map_coloured.jpg")), request.environ)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/depth-map/regenerate", methods=["POST"])
+def regenerate_depth_map():
+    """Recompute local V2 from the retained source, replacing the active map."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        generator = str(payload.get("generator", "automatic"))
+        resolved = resolve_local_depth_generator(generator)
+        invert = str(payload.get("invert", "false")).lower() == "true"
+        depth = get_ai_depth(generator, force=True)
+        save_active_depth(1.0 - depth if invert else depth)
+        return jsonify({"success": True, "generator": resolved}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

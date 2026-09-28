@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
     AUTOMATIC_DEPTH_GENERATOR,
     DEPTH_GENERATORS,
+    activeDepthMapPath,
     resolveDepthGenerator,
 } from './depthGenerators.ts'
 import { v3InputSize, v3NearPixels } from './depthV3Math.ts'
@@ -15,6 +16,10 @@ for (const runtime of ['browser', 'local']) {
 
 assert.deepEqual(DEPTH_GENERATORS.map(generator => generator.id), ['depth-anything-v2-small', 'depth-anything-v3-small'])
 assert.equal(resolveDepthGenerator('depth-anything-v3-small', 'browser').depthConvention, 'near-is-high')
+assert.equal(activeDepthMapPath('depth-anything-v3-small', 'browser'), '/depth-map')
+assert.equal(activeDepthMapPath('automatic', 'browser'), '/depth-map')
+assert.equal(activeDepthMapPath('automatic', 'local'), '/depth-map?generator=automatic')
+assert.throws(() => activeDepthMapPath('depth-anything-v3-small', 'local'), /unavailable/)
 assert.throws(() => resolveDepthGenerator('depth-anything-v3-small', 'local'), /unavailable/)
 assert.throws(() => resolveDepthGenerator('depth-pro', 'local'), /unavailable/)
 assert.deepEqual(v3InputSize(1600, 1200, 504), [504, 378])

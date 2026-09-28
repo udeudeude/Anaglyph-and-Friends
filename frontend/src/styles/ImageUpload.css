@@ -16,6 +16,10 @@
 .depthHeader { display:flex; align-items:center; justify-content:space-between; margin-top:8px; color:#9db0c8; font-size:12px; font-weight:700; }
 .miniLoader { width:13px; height:13px; border:2px solid #294565; border-top-color:#64a0ff; border-radius:50%; display:inline-block; animation:spin .8s linear infinite; }
 .depthSourceControls { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px; border:1px solid #233a56; border-radius:9px; background:#091727; }
+.depthRegenerate { display:grid; gap:5px; }
+.depthRegenerate button { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; border:1px solid #31557d; border-radius:7px; padding:8px; color:#b9d2ef; background:#12304e; font-size:10px; font-weight:800; }
+.depthRegenerate small { color:#7893b1; font-size:9px; line-height:1.4; }
+@media(max-width:820px){.depthRegenerate{grid-column:1/-1}}
 .depthSourceControls label { display:flex; flex-direction:column; gap:4px; color:#7890ad; font-size:9px; font-weight:700; }
 .depthSourceControls label>span { color:#8fa4bd; }
 .depthSourceControls select { width:100%; border:1px solid #2a425f; border-radius:7px; padding:7px 8px; color:#b8cadf; background:#0b1929; font-size:9px; }
