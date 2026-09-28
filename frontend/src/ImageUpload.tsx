@@ -439,7 +439,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
 
     const pasteFromClipboard = async () => {
         try {
-            const clipboard = navigator.clipboard as any;
+            const clipboard = navigator.clipboard;
             if (!clipboard?.read) throw new Error("Clipboard image reading is unavailable in this browser");
             const items = await clipboard.read();
             for (const item of items) {

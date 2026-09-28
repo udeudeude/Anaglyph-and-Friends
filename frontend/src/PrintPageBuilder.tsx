@@ -117,7 +117,7 @@ function PrintPageBuilder({ setProcessingStage, incomingArtwork = null, onIncomi
 
             ctx.fillStyle='#111';ctx.textAlign='center'
             if(settings.title.trim()){ctx.font=`700 ${Math.max(11,dpi/12)}px system-ui,sans-serif`;ctx.fillText(settings.title,w/2,margin+mm(6))}
-            let fy=h-margin-mm(2)
+            const fy=h-margin-mm(2)
             if(settings.showScaleBar){
                 const barW=mm(50),barY=fy-mm(8),barX=margin
                 ctx.strokeStyle='#111';ctx.lineWidth=Math.max(1,dpi/300);ctx.strokeRect(barX,barY,barW,mm(3))

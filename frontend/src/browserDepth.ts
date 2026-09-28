@@ -5,6 +5,16 @@ const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 const MODEL_ID = 'onnx-community/depth-anything-v2-small'
 
 type Progress = (message: string) => void
+type ModelProgress = { status?: string; progress?: number }
+type DepthImage = { width: number; height: number; data: Uint8Array | Uint8ClampedArray }
+type DepthEstimator = (source: string) => Promise<{ depth: DepthImage }>
+type TransformersModule = {
+    pipeline: (task: string, model: string, options: {
+        device?: string
+        dtype?: string
+        progress_callback: (info: ModelProgress) => void
+    }) => Promise<DepthEstimator>
+}
 
 export type BrowserDepthFailureKind =
     | 'library-download'
@@ -32,7 +42,7 @@ export class BrowserDepthError extends Error {
     }
 }
 
-let estimatorPromise: Promise<any> | null = null
+let estimatorPromise: Promise<DepthEstimator> | null = null
 let estimatorEngine = ''
 
 const errorText = (error: unknown) => {
@@ -123,9 +133,9 @@ async function createEstimator(progress?: Progress) {
     estimatorPromise = (async () => {
         progress?.('Loading browser AI… first use may need a one-time model download')
         const moduleUrl: string = TRANSFORMERS_CDN
-        let transformers: any
+        let transformers: TransformersModule
         try {
-            transformers = await import(/* @vite-ignore */ moduleUrl)
+            transformers = await import(/* @vite-ignore */ moduleUrl) as TransformersModule
         } catch (error) {
             throw new BrowserDepthError('library-download', 'Failed to download the browser AI library', error)
         }
@@ -139,7 +149,7 @@ async function createEstimator(progress?: Progress) {
                 return await transformers.pipeline('depth-estimation', MODEL_ID, {
                     device: 'webgpu',
                     dtype: 'q4f16',
-                    progress_callback: (info: any) => {
+                    progress_callback: (info: ModelProgress) => {
                         if (info?.status === 'progress' && typeof info.progress === 'number') {
                             progress?.(`Loading AI model… ${Math.round(info.progress)}%`)
                         }
@@ -155,7 +165,7 @@ async function createEstimator(progress?: Progress) {
         progress?.(hasWebGpu ? 'WebGPU unavailable here · trying browser CPU…' : 'Starting browser CPU depth model…')
         try {
             return await transformers.pipeline('depth-estimation', MODEL_ID, {
-                progress_callback: (info: any) => {
+                progress_callback: (info: ModelProgress) => {
                     if (info?.status === 'progress' && typeof info.progress === 'number') {
                         progress?.(`Loading AI model… ${Math.round(info.progress)}%`)
                     }
@@ -181,7 +191,7 @@ async function createEstimator(progress?: Progress) {
     }
 }
 
-function depthToPng(depth: any): Promise<Blob> {
+function depthToPng(depth: DepthImage): Promise<Blob> {
     const width = Number(depth?.width)
     const height = Number(depth?.height)
     const data = depth?.data as Uint8Array | Uint8ClampedArray | undefined
@@ -238,7 +248,7 @@ export async function generateBrowserDepth(file: File, progress?: Progress, sele
     progress?.(`Estimating depth on this device (${estimatorEngine})…`)
     const sourceUrl = URL.createObjectURL(file)
     try {
-        let result: any
+        let result: { depth: DepthImage }
         try {
             result = await estimator(sourceUrl)
         } catch (error) {
