@@ -4,7 +4,7 @@ import "./styles/ImageUpload.css";
 import { describeBrowserDepthError, generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
 import type { BrowserDepthFailureInfo } from "./browserDepth";
 import DepthGeneratorSelector from "./DepthGeneratorSelector";
-import { AUTOMATIC_DEPTH_GENERATOR, resolveDepthGenerator } from "./depthGenerators";
+import { activeDepthMapPath, AUTOMATIC_DEPTH_GENERATOR, resolveDepthGenerator } from "./depthGenerators";
 import type { DepthGeneratorSelection } from "./depthGenerators";
 import UiIcon from "./UiIcon";
 
@@ -40,6 +40,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const [pasteMessage, setPasteMessage] = useState<string>("");
     const [depthSource, setDepthSource] = useState<DepthSource>('ai');
     const [depthGenerator, setDepthGenerator] = useState<DepthGeneratorSelection>(AUTOMATIC_DEPTH_GENERATOR);
+    const [activeAiGenerator, setActiveAiGenerator] = useState<DepthGeneratorSelection | null>(null);
     const [hasImportedDepth, setHasImportedDepth] = useState(false);
     const [depthFit, setDepthFit] = useState<DepthFit>('crop');
     const [depthInvert, setDepthInvert] = useState(false);
@@ -71,38 +72,40 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         setter(blob ? URL.createObjectURL(blob) : null);
     };
 
-    const fetchDepthMap = async () => {
+    const fetchDepthMap = async (selection = depthGenerator): Promise<boolean> => {
         setDepthMapIsLoading(true);
         setProcessingStage('depth');
         try {
-            const response = await fetch(`${apiUrl}/depth-map?generator=${depthGenerator}`, { method: "GET", credentials: "include" });
+            const path = activeDepthMapPath(selection, useBrowserDepth ? 'browser' : 'local');
+            const response = await fetch(`${apiUrl}${path}`, { method: "GET", credentials: "include" });
             if (!response.ok) throw new Error(response.statusText);
             const blob = await response.blob();
             if (!blob.size) throw new Error("Depth map is empty");
             replaceObjectUrl(setDepthMapUrl, depthMapUrl, blob);
             setIsDepthMapReadyStateLifter(true);
             setProcessingStage('stereo');
+            return true;
         } catch (error) {
             console.error("Failed to fetch depth map", error);
             setProcessingStage('error');
             setIsChangeAllowed(true);
+            return false;
         } finally {
             setDepthMapIsLoading(false);
         }
     };
 
-    const generateHostedAiDepth = async (file: File, invert = depthInvert) => {
+    const generateHostedAiDepth = async (file: File, invert = depthInvert, selection = depthGenerator, preserveExisting = true) => {
         setIsChangeAllowed(false);
         setIsDepthMapReadyStateLifter(false);
         setDepthMapIsLoading(true);
         setProcessingStage('depth');
-        setDepthSource('ai');
         setHostedDepthFailure(null);
         setDepthSourceMeta('Loading browser AI… first use may need a one-time model download');
 
         let generated: Awaited<ReturnType<typeof generateBrowserDepth>>;
         try {
-            generated = await generateBrowserDepth(file, setDepthSourceMeta, depthGenerator);
+            generated = await generateBrowserDepth(file, setDepthSourceMeta, selection);
         } catch (error) {
             console.error('Browser depth estimation failed', error);
             const failure = describeBrowserDepthError(error);
@@ -112,6 +115,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setHostedDepthFailure({ ...failure, detail: offlineDetail });
             setDepthSourceMeta(failure.title);
             setProcessingStage('error');
+            setIsDepthMapReadyStateLifter(preserveExisting && !!depthMapUrl);
             setIsChangeAllowed(true);
             setDepthMapIsLoading(false);
             return;
@@ -125,6 +129,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             const response = await fetch(`${apiUrl}/depth-map/ai-import`, { method: 'POST', body: form, credentials: 'include' });
             const info = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(info.error || `Browser AI depth import failed: ${response.status}`);
+            if (!await fetchDepthMap(selection)) throw new Error('The generated map was saved but could not be loaded');
             setHostedDepthFailure(null);
             setDepthSource('ai');
             setDepthSourceMeta(`${generated.generator} · ${generated.engine} · runs on this device`);
@@ -132,26 +137,78 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             setCanRedoDepth(false);
             setDepthHistoryPosition(0);
             setDepthHistoryCount(0);
-            await fetchDepthMap();
+            setActiveAiGenerator(selection);
         } catch (error) {
             console.error('Browser depth was generated but could not be saved to the session', error);
             setHostedDepthFailure({
                 kind: 'server-import',
                 title: 'Depth was calculated, but the app could not save it',
-                detail: 'The browser AI worked. The connection to Anaglyph & Friends failed afterward, so retrying should not require choosing the source image again.',
+                detail: 'The browser AI worked. Saving or loading its map from Anaglyph & Friends failed afterward; the source image is still available for retry.',
                 technical: error instanceof Error ? error.message : String(error),
             });
             setDepthSourceMeta('AI depth calculated · session save failed');
             setProcessingStage('error');
+            setIsDepthMapReadyStateLifter(preserveExisting && !!depthMapUrl);
             setIsChangeAllowed(true);
         } finally {
             setDepthMapIsLoading(false);
+            setIsChangeAllowed(true);
         }
     };
 
     const retryHostedAiDepth = () => {
         if (!sourceFile || !useBrowserDepth || depthMapIsLoading) return;
-        void generateHostedAiDepth(sourceFile, depthInvert);
+        void generateHostedAiDepth(sourceFile, depthInvert, depthGenerator);
+    };
+
+    const regenerateAiDepth = async (selection: DepthGeneratorSelection = depthGenerator) => {
+        if (!sourceFile || depthMapIsLoading || !isChangeAllowed) return;
+        if (useBrowserDepth) {
+            await generateHostedAiDepth(sourceFile, depthInvert, selection);
+            return;
+        }
+        setIsChangeAllowed(false);
+        setDepthMapIsLoading(true);
+        setProcessingStage('depth');
+        try {
+            const response = await fetch(`${apiUrl}/depth-map/regenerate`, {
+                method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ generator: selection, invert: depthInvert }),
+            });
+            const info = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(info.error || `Depth regeneration failed: ${response.status}`);
+            if (!await fetchDepthMap(selection)) throw new Error('The regenerated map was saved but could not be loaded');
+            setDepthSource('ai');
+            setDepthSourceMeta(`${resolveDepthGenerator(selection, 'local').name} estimation`);
+            setCanUndoDepth(false);
+            setCanRedoDepth(false);
+            setDepthHistoryPosition(0);
+            setDepthHistoryCount(0);
+            setActiveAiGenerator(selection);
+        } catch (error) {
+            console.error('Could not regenerate AI depth', error);
+            setDepthSourceMeta(error instanceof Error ? error.message : 'Could not regenerate AI depth');
+            setProcessingStage('error');
+            setIsDepthMapReadyStateLifter(!!depthMapUrl);
+        } finally {
+            setDepthMapIsLoading(false);
+            setIsChangeAllowed(true);
+        }
+    };
+
+    const changeDepthGenerator = (selection: DepthGeneratorSelection) => {
+        if (selection === depthGenerator) return;
+        setDepthGenerator(selection);
+        const runtime = useBrowserDepth ? 'browser' : 'local';
+        const activeId = activeAiGenerator && resolveDepthGenerator(activeAiGenerator, runtime).id;
+        const nextId = resolveDepthGenerator(selection, runtime).id;
+        if (depthMapUrl && depthSource === 'ai' && activeId === nextId) {
+            setHostedDepthFailure(null);
+            setDepthSourceMeta(`${resolveDepthGenerator(selection, runtime).name} · current map`);
+        }
+        if (sourceFile && depthSource === 'ai' && depthHistoryCount === 0 && !depthEditing && isChangeAllowed && activeId !== nextId) {
+            void regenerateAiDepth(selection);
+        }
     };
 
     const activateDepthSource = async (source: DepthSource, mode = depthFit, invert = depthInvert) => {
@@ -176,7 +233,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                 throw new Error(body.error || `Depth source failed: ${response.status}`);
             }
             setDepthSource(source);
-            setDepthSourceMeta(source === 'ai' ? 'Depth Anything V2 estimation' : `Imported map · ${mode === 'crop' ? 'crop to fill' : mode === 'fit' ? 'fit inside' : 'stretch to image'}`);
+            setDepthSourceMeta(source === 'ai' ? `${resolveDepthGenerator(activeAiGenerator || depthGenerator, useBrowserDepth ? 'browser' : 'local').name} estimation` : `Imported map · ${mode === 'crop' ? 'crop to fill' : mode === 'fit' ? 'fit inside' : 'stretch to image'}`);
             setCanUndoDepth(false);
             setCanRedoDepth(false);
             setDepthHistoryPosition(0);
@@ -368,6 +425,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
         replaceObjectUrl(setImageUrl, imageUrl, file);
         setSourceFile(file);
         setDepthSource('ai');
+        setActiveAiGenerator(null);
         setHasImportedDepth(false);
         setDepthFit('crop');
         setDepthInvert(false);
@@ -405,8 +463,8 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             if (info.width && info.height) {
                 setSourceMeta(`${info.width} × ${info.height} · ${megabytes.toFixed(megabytes >= 10 ? 0 : 1)} MB · full resolution`);
             }
-            if (useBrowserDepth) await generateHostedAiDepth(file, false);
-            else await fetchDepthMap();
+            if (useBrowserDepth) await generateHostedAiDepth(file, false, depthGenerator, false);
+            else if (await fetchDepthMap(depthGenerator)) setActiveAiGenerator(depthGenerator);
         } catch (error) {
             console.error("Failed to upload image", error);
             setProcessingStage('error');
@@ -538,7 +596,13 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                 <UiIcon name="upload" /> Choose image <kbd>U / ⌘O</kbd>
             </button>
             <button className="secondaryAction" onClick={pasteFromClipboard} disabled={!isChangeAllowed && !!imageUrl}>Paste image <kbd>⌘V</kbd></button>
-            <DepthGeneratorSelector selection={depthGenerator} runtime={useBrowserDepth ? 'browser' : 'local'} disabled={!isChangeAllowed} onChange={setDepthGenerator} context="image" />
+            <DepthGeneratorSelector selection={depthGenerator} runtime={useBrowserDepth ? 'browser' : 'local'} disabled={!isChangeAllowed} onChange={changeDepthGenerator} context="image" />
+            {sourceFile && <div className="depthRegenerate">
+                <button type="button" onClick={() => void regenerateAiDepth()} disabled={!isChangeAllowed || depthMapIsLoading}>
+                    <UiIcon name="reset" /> {depthMapIsLoading ? 'Generating AI depth…' : depthSource === 'imported' ? 'Generate AI depth for this image' : depthHistoryCount ? 'Replace edited map with AI depth' : 'Regenerate AI depth'}
+                </button>
+                <small>{depthSource === 'imported' ? 'Your imported map stays active until you choose this.' : depthHistoryCount ? 'This replaces the edited map and its undo history.' : activeAiGenerator && resolveDepthGenerator(activeAiGenerator, useBrowserDepth ? 'browser' : 'local').id !== selectedGenerator.id ? `Current map: ${resolveDepthGenerator(activeAiGenerator, useBrowserDepth ? 'browser' : 'local').name}. Selected: ${selectedGenerator.name}.` : `Uses ${selectedGenerator.name} on the loaded image.`}</small>
+            </div>}
             <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" ref={imageInputRef} className="hiddenInput" onClick={(e) => { e.currentTarget.value = ""; }} onChange={handleImageChange} />
             <input type="file" accept=".npy,image/png,image/jpeg,image/jpg,image/webp,image/tiff" ref={depthInputRef} className="hiddenInput" onClick={(e) => { e.currentTarget.value = ""; }} onChange={handleDepthImport} />
             {pasteMessage && <div className="pasteMessage">{pasteMessage}</div>}
@@ -604,7 +668,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                     <button className="resetDepthEdits" onClick={resetDepthEdits} disabled={!isChangeAllowed || (!canUndoDepth && depthHistoryPosition === 0)}><UiIcon name="reset" /> Reset depth edits</button>
                 </div>}
             </div>
-            {hostedDepthFailure && useBrowserDepth && sourceFile && !depthMapUrl && <div className="browserDepthFailure" role="alert">
+            {hostedDepthFailure && useBrowserDepth && sourceFile && <div className="browserDepthFailure" role="alert">
                 <div><strong>{hostedDepthFailure.title}</strong><span>{hostedDepthFailure.detail}</span></div>
                 <button type="button" onClick={retryHostedAiDepth} disabled={depthMapIsLoading}><UiIcon name="reset" /> Retry AI depth</button>
                 <small>You do not need to choose the image again.</small>
@@ -627,7 +691,7 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
                 <button onClick={() => triggerDepthDownload('color')} disabled={!depthMapUrl}><UiIcon name="download" />Color map</button>
             </div>
 
-            <div className="localNote"><strong>{depthSource === 'ai' ? 'Depth Anything V2' : 'Custom depth source'}</strong><span>The original image stays at full resolution. The active depth map drives every 3D technique and can be replaced independently of the visible image.</span></div>
+            <div className="localNote"><strong>{depthSource === 'ai' ? resolveDepthGenerator(activeAiGenerator || depthGenerator, useBrowserDepth ? 'browser' : 'local').name : 'Custom depth source'}</strong><span>The original image stays at full resolution. The active depth map drives every 3D technique and can be replaced independently of the visible image.</span></div>
 
             {isDragging && <div className="dropOverlay"><strong>Drop image</strong><span>Full-resolution original will be retained</span></div>}
             {inspect && <div className="inspectOverlay" role="dialog" aria-label={inspect.label} onClick={() => setInspect(null)}>
