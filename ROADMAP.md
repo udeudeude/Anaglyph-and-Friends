@@ -167,7 +167,7 @@ The current application includes:
 - random-dot autostereograms
 - pattern-based autostereograms
 - lenticular 3D interlacing plus printable LPI calibration bars
-- experimental phantogram workspace with model geometry, a geometric test block, and physical-size PNG output; photograph + AI depth remains approximate pending real camera/ground-plane reconstruction and print testing
+- experimental phantogram workspace with uniformly scaled model geometry, a geometric test cube, and physical-size PNG output; photograph + AI depth remains approximate pending real camera/ground-plane reconstruction and print testing
 - experimental seven-scene View-Master reel builder with PDF/SVG print masters and imported-pair scenes
 - RGB Reveal / CMY Layers workspace for three-layer color-filter artwork
 - dual-projector polarized 3D workspace with independent alignment, crosstalk tests, projector windows, and exports
@@ -187,7 +187,7 @@ These are intentionally placed behind the main technique chooser so they do not 
 The visible photograph and the depth source can now be independent. Imported stereo pairs can also carry an optional depth map aligned to their left-eye image, unlocking ChromaDepth, multi-view wiggle, and autostereograms while retaining the original pair for ordinary stereo outputs.
 
 - Depth Anything V2 remains the default depth source.
-- A collapsed AI generator chooser now keeps Automatic mapped to V2 Small, with an explicit V2 choice in Studio and View-Master. [V3 Small and local Depth Pro research, integration gates, and licensing](docs/DEPTH_GENERATORS.md) are recorded; neither is advertised as usable until its adapter is validated.
+- A collapsed AI generator chooser keeps Automatic mapped to V2 Small. The hosted browser edition also offers optional V3 Small; local Depth Pro remains a research candidate with separate hardware/dependency validation gates. See [generator availability and limits](docs/DEPTH_GENERATORS.md).
 - A replacement depth map can be imported from PNG/JPEG/TIFF/WebP or float32 `.npy` data.
 - Imported maps do not need to match the source image dimensions or aspect ratio.
 - Aspect matching options include crop-to-fill, fit-inside, and stretch-to-image.
