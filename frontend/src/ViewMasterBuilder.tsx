@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, PointerEvent, SyntheticEvent } from 'react'
+import type { ChangeEvent, DragEvent, PointerEvent, SyntheticEvent } from 'react'
 import { downloadViewMasterPdf } from './viewMasterPdf'
 import { CENTER_CROP, coverPlacement, draggedCrop } from './viewMasterCrop'
+import { assignViewMasterDrop } from './viewMasterDrop'
 import type { CropPosition, EyeImage, StereoPair } from './viewMasterCrop'
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from './browserDepth'
 import DepthGeneratorSelector from './DepthGeneratorSelector'
@@ -184,6 +185,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
     const [croppingScene, setCroppingScene] = useState<number | null>(null)
     const [reelTitle, setReelTitle] = useState('MY VIEW-MASTER REEL')
     const [previewDimensions, setPreviewDimensions] = useState<Record<string, { width: number; height: number }>>({})
+    const [dropScene, setDropScene] = useState<number | null>(null)
     const dragStart = useRef<{ pointerId: number; scene: number; x: number; y: number; crop: CropPosition; width: number; height: number; frameWidth: number; frameHeight: number } | null>(null)
 
     const readyCount = useMemo(() => slots.filter(slotReady).length, [slots])
@@ -253,23 +255,47 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
         const file = event.target.files?.[0]
         event.currentTarget.value = ''
         if (!file || !file.type.startsWith('image/')) return
-        replaceSlot(index, { ...emptySlot(), mode: 'single', file, previewUrl: URL.createObjectURL(file) })
+        setSingleFile(index, file)
+    }
+
+    const setSingleFile = (index: number, file: File) => replaceSlot(index, { ...emptySlot(), mode: 'single', file, previewUrl: URL.createObjectURL(file) })
+
+    const setPairFiles = (index: number, left?: File, right?: File) => {
+        invalidateMaster()
+        setError('')
+        setSlots(current => current.map((slot, slotIndex) => {
+            if (slotIndex !== index) return slot
+            if (left && slot.leftPreviewUrl) URL.revokeObjectURL(slot.leftPreviewUrl)
+            if (right && slot.rightPreviewUrl) URL.revokeObjectURL(slot.rightPreviewUrl)
+            if (slot.previewUrl) URL.revokeObjectURL(slot.previewUrl)
+            return { ...slot, mode: 'pair', file: null, previewUrl: null,
+                leftFile: left || slot.leftFile, leftPreviewUrl: left ? URL.createObjectURL(left) : slot.leftPreviewUrl,
+                rightFile: right || slot.rightFile, rightPreviewUrl: right ? URL.createObjectURL(right) : slot.rightPreviewUrl }
+        }))
     }
 
     const choosePairEye = (index: number, eye: 'left' | 'right', event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         event.currentTarget.value = ''
         if (!file || !file.type.startsWith('image/')) return
-        invalidateMaster()
-        setError('')
-        setSlots(current => current.map((slot, slotIndex) => {
-            if (slotIndex !== index) return slot
-            const previousUrl = eye === 'left' ? slot.leftPreviewUrl : slot.rightPreviewUrl
-            if (previousUrl) URL.revokeObjectURL(previousUrl)
-            return eye === 'left'
-                ? { ...slot, mode: 'pair', leftFile: file, leftPreviewUrl: URL.createObjectURL(file), file: null, previewUrl: null }
-                : { ...slot, mode: 'pair', rightFile: file, rightPreviewUrl: URL.createObjectURL(file), file: null, previewUrl: null }
-        }))
+        setPairFiles(index, eye === 'left' ? file : undefined, eye === 'right' ? file : undefined)
+    }
+
+    const dropImages = (index: number, event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setDropScene(null)
+        if (building) return
+        const preview = event.currentTarget.querySelector('.vmSlotPreview')
+        const bounds = preview?.getBoundingClientRect()
+        const eye = bounds && event.clientX >= bounds.left + bounds.width / 2 ? 'right' : 'left'
+        try {
+            const assignment = assignViewMasterDrop(Array.from(event.dataTransfer.files), slots[index].mode, eye)
+            if (!assignment) return
+            if (assignment.mode === 'single') setSingleFile(index, assignment.file)
+            else setPairFiles(index, assignment.left, assignment.right)
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : 'Could not use the dropped images.')
+        }
     }
 
     const sourceForSlot = (slot: ReelSlot): StudioSource | null => {
@@ -422,13 +448,18 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                     {slots.map((slot, index) => {
                         const ready = slotReady(slot)
                         const source = sourceForSlot(slot)
-                        return <div className={ready ? 'vmSlot ready' : 'vmSlot'} key={index} style={{ gridColumn: index < 4 ? index + 1 : 1, gridRow: index < 4 ? 1 : index - 2 }}>
+                        return <div className={`vmSlot${ready ? ' ready' : ''}${dropScene === index ? ' vmDropActive' : ''}`} key={index} style={{ gridColumn: index < 4 ? index + 1 : 1, gridRow: index < 4 ? 1 : index - 2 }}
+                            onDragEnter={event => { if (!building && Array.from(event.dataTransfer.types).includes('Files')) { event.preventDefault(); setDropScene(index) } }}
+                            onDragOver={event => { if (!building && Array.from(event.dataTransfer.types).includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropScene(index) } }}
+                            onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropScene(null) }}
+                            onDrop={event => dropImages(index, event)}>
                             <div className="vmSlotHeader"><span className="vmSlotNumber">{index + 1}</span><div className="vmSlotModeSwitch"><button className={slot.mode === 'single' ? 'active' : ''} onClick={() => setMode(index, 'single')} disabled={building}>1 image</button><button className={slot.mode === 'pair' ? 'active' : ''} onClick={() => setMode(index, 'pair')} disabled={building}>L + R</button></div></div>
                             <div className={slot.mode === 'pair' ? 'vmSlotPreview vmPairPreview' : 'vmSlotPreview'} onPointerDown={event => startCropDrag(index, event)} onPointerMove={moveCropDrag} onPointerUp={stopCropDrag} onPointerCancel={stopCropDrag}>
-                                {slot.mode === 'single' ? (slot.previewUrl ? <img src={slot.previewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1}`} /> : <span className="vmEmptySlot">Choose source image</span>) : <>
-                                    {slot.leftPreviewUrl ? <img src={slot.leftPreviewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} left`} /> : <span className="vmEyePlaceholder">L</span>}
-                                    {slot.rightPreviewUrl ? <img src={slot.rightPreviewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} right`} /> : <span className="vmEyePlaceholder">R</span>}
+                                {slot.mode === 'single' ? (slot.previewUrl ? <img src={slot.previewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1}`} /> : <span className="vmEmptySlot"><span>Drop image here<br />or choose below</span></span>) : <>
+                                    {slot.leftPreviewUrl ? <img src={slot.leftPreviewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} left`} /> : <span className="vmEyePlaceholder">Drop L</span>}
+                                    {slot.rightPreviewUrl ? <img src={slot.rightPreviewUrl} draggable={false} onLoad={rememberDimensions} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} right`} /> : <span className="vmEyePlaceholder">Drop R</span>}
                                 </>}
+                                {dropScene === index && <div className="vmDropCue">{slot.mode === 'single' ? 'Drop image' : <><span>Drop left</span><span>Drop right</span></>}</div>}
                             </div>
                             <div className="vmSlotFooter"><div className="vmSlotPicks">
                                 {slot.mode === 'single' ? <label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => chooseSingle(index, event)} disabled={building} /><UiIcon name="upload" /> {slot.file ? 'Replace image' : 'Choose image'}</label> : <><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'left', event)} disabled={building} /><UiIcon name="upload" /> {slot.leftFile ? 'Replace L' : 'Choose L'}</label><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'right', event)} disabled={building} /><UiIcon name="upload" /> {slot.rightFile ? 'Replace R' : 'Choose R'}</label></>}
