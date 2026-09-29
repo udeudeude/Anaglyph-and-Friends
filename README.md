@@ -234,6 +234,8 @@ In the **View-Master Reel** workspace, seven scene cards run across the top and 
 
 Both editions can also use an imported depth map or an imported left/right stereo pair. Imported stereo pairs can optionally carry a depth map aligned to the left-eye image; that map unlocks ChromaDepth, multi-view wiggle, and random-dot/pattern autostereograms without pretending that depth can be recovered reliably from every arbitrary stereo pair.
 
+**Layered Transparency** under Studio's Print techniques turns the current single image and active depth map into 2–10 numbered clear-sheet pages, plus matching white-paper cut guides. The default ten-sheet stack can use a Rack-O rack as an evenly spaced holder, but the rack's actual spacing and fit are not assumed. Background compression, measured gap, artwork width, and print resolution are adjustable. Explanation and assembly instructions are tucked under a disclosure. See [Layered Transparency guide](docs/LAYERED_TRANSPARENCY.md).
+
 ## Known validation / roadmap
 
 The hosted architecture has now been exercised with repeated real use after removing server-side PyTorch from the Render build. GitHub also builds and starts the same production Docker image, checks its lightweight health endpoint, and verifies that the compiled frontend is served before changes reach Render.

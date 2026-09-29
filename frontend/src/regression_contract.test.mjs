@@ -13,6 +13,13 @@ const required=[
  [depthCatalog,"id: 'depth-anything-v2-small'",'verified V2 generator catalog'],[depthCatalog,"id: 'depth-anything-v3-small'",'optional browser V3 catalog'],[depthCatalog,"RECOMMENDED_GENERATOR: DepthGeneratorId = 'depth-anything-v2-small'",'V2 remains automatic'],[depthCatalog,"'near-is-high'",'depth nearness convention'],[depthSelector,'Automatic (recommended)','simple default generator choice'],[imageUpload,'<DepthGeneratorSelector','Studio advanced generator selection'],[imageUpload,'generateBrowserDepth(file, setDepthSourceMeta, selection)','Studio browser generator dispatch'],[viewMaster,'<DepthGeneratorSelector','View-Master advanced generator selection'],[viewMaster,'depthGenerator)','View-Master browser generator dispatch'],[browserDepth,'resolveDepthGenerator(selection, \'browser\')','browser generator validation'],[browserDepth,"import('./browserDepthV3')",'V3 adapter loaded only when chosen'],[browserDepthV3,"executionProviders: ['webgpu']",'V3 WebGPU startup'],[browserDepthV3,"executionProviders: ['wasm']",'V3 browser CPU fallback'],[browserDepthV3,'v3NearPixels','V3 distance-to-nearness conversion'],
 ];
 required.push(
+ [app,'studioSurface === \'transparency\'','Layered Transparency routing'],
+ [editor,'__transparency__','Layered Transparency Print menu entry'],
+ [read('./LayeredTransparencyBuilder.tsx'),'kind=npy','active full-resolution depth map used for transparent sheets'],
+ [read('./LayeredTransparencyBuilder.tsx'),'Download white backing cut guides','matching white paper masks'],
+ [read('./LayeredTransparencyBuilder.tsx'),'Explanation &amp; assembly instructions','progressive instruction disclosure'],
+ [read('./layeredTransparency.ts'),'sheetForDepth','depth-to-sheet assignment'],
+ [read('./layeredTransparencyPdf.ts'),'/MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}]','physical Letter PDF pages'],
  [viewMaster,'Adjust crop','View-Master per-scene crop editor'],
  [viewMaster,'setMasterPairs(pairs)','View-Master eye images retained without rerunning AI for framing'],
  [viewMaster,'filmMasterSvg(masterPairs, imageRotation, slots.map(slot => slot.crop), reelTitle)','SVG uses current per-scene crop positions and title'],
