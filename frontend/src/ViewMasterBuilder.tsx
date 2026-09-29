@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { downloadViewMasterPdf } from './viewMasterPdf'
+import { CENTER_CROP, coverPlacement } from './viewMasterCrop'
+import type { CropPosition, EyeImage, StereoPair } from './viewMasterCrop'
 import { generateBrowserDepth, hostedBrowserDepthEnabled } from './browserDepth'
 import DepthGeneratorSelector from './DepthGeneratorSelector'
 import { AUTOMATIC_DEPTH_GENERATOR } from './depthGenerators'
@@ -27,11 +29,7 @@ type ReelSlot = {
     rightFile: File | null
     leftPreviewUrl: string | null
     rightPreviewUrl: string | null
-}
-
-type StereoPair = {
-    left: string
-    right: string
+    crop: CropPosition
 }
 
 const SLOT_COUNT = 7
@@ -46,7 +44,7 @@ const POSITION_STEP_DEG = 360 / 14
 const SCENE_STEP_DEG = 360 / SLOT_COUNT
 const VIEWMASTER_HEADERS = { 'X-AAF-Workspace': 'viewmaster' }
 
-const emptySlot = (): ReelSlot => ({ mode: 'single', file: null, previewUrl: null, leftFile: null, rightFile: null, leftPreviewUrl: null, rightPreviewUrl: null })
+const emptySlot = (): ReelSlot => ({ mode: 'single', file: null, previewUrl: null, leftFile: null, rightFile: null, leftPreviewUrl: null, rightPreviewUrl: null, crop: { ...CENTER_CROP } })
 const emptySlots = (): ReelSlot[] => Array.from({ length: SLOT_COUNT }, emptySlot)
 const slotReady = (slot: ReelSlot) => slot.mode === 'single' ? !!slot.file : !!slot.leftFile && !!slot.rightFile
 
@@ -61,6 +59,16 @@ const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
     reader.readAsDataURL(blob)
 })
 
+const eyeFromBlob = async (blob: Blob): Promise<EyeImage> => {
+    const url = await blobToDataUrl(blob)
+    return new Promise((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve({ url, width: image.naturalWidth, height: image.naturalHeight })
+        image.onerror = () => reject(new Error('Could not decode a View-Master scene image'))
+        image.src = url
+    })
+}
+
 const pointOnCircle = (radius: number, angleDeg: number) => {
     const radians = angleDeg * Math.PI / 180
     return {
@@ -74,7 +82,7 @@ const scenePositions = (scene: number) => {
     return { left, right: (left + 7) % 14 }
 }
 
-function filmMasterSvg(pairs: StereoPair[], imageRotation: number) {
+function filmMasterSvg(pairs: StereoPair[], imageRotation: number, crops: CropPosition[]) {
     const images: string[] = []
     const labels: string[] = []
 
@@ -85,8 +93,9 @@ function filmMasterSvg(pairs: StereoPair[], imageRotation: number) {
             const position = positions[eye]
             const centerAngle = 180 + position * POSITION_STEP_DEG
             const center = pointOnCircle(FRAME_CENTER_RADIUS_MM, centerAngle)
-            const href = pair[eye]
-            images.push(`<image href="${href}" x="${-FRAME_WIDTH_MM / 2}" y="${-FRAME_HEIGHT_MM / 2}" width="${FRAME_WIDTH_MM}" height="${FRAME_HEIGHT_MM}" preserveAspectRatio="xMidYMid slice" transform="translate(${center.x.toFixed(4)} ${center.y.toFixed(4)}) rotate(${rotation.toFixed(4)})"/>`)
+            const image = pair[eye]
+            const placement = coverPlacement(image.width, image.height, FRAME_WIDTH_MM, FRAME_HEIGHT_MM, crops[scene])
+            images.push(`<g transform="translate(${center.x.toFixed(4)} ${center.y.toFixed(4)}) rotate(${rotation.toFixed(4)})" clip-path="url(#frameClip)"><image href="${image.url}" x="${(-FRAME_WIDTH_MM / 2 + placement.x).toFixed(4)}" y="${(-FRAME_HEIGHT_MM / 2 + placement.y).toFixed(4)}" width="${placement.width.toFixed(4)}" height="${placement.height.toFixed(4)}" preserveAspectRatio="none"/></g>`)
             const labelPoint = pointOnCircle(FRAME_CENTER_RADIUS_MM - 8.0, centerAngle)
             labels.push(`<text x="${labelPoint.x.toFixed(3)}" y="${labelPoint.y.toFixed(3)}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="1.5" fill="#4a4a4a">${scene + 1}${eye === 'left' ? 'L' : 'R'}</text>`)
         })
@@ -102,7 +111,7 @@ function filmMasterSvg(pairs: StereoPair[], imageRotation: number) {
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${MASTER_SIZE_MM}mm" height="${MASTER_SIZE_MM}mm" viewBox="0 0 ${MASTER_SIZE_MM} ${MASTER_SIZE_MM}">
   <title>Anaglyph &amp; Friends View-Master transparency master</title>
   <desc>Seven stereo pairs arranged as fourteen View-Master frames. Print at 100% / actual size.</desc>
-  <defs><clipPath id="reelClip"><circle cx="${MASTER_CENTER_MM}" cy="${MASTER_CENTER_MM}" r="${REEL_DIAMETER_MM / 2}"/></clipPath></defs>
+  <defs><clipPath id="reelClip"><circle cx="${MASTER_CENTER_MM}" cy="${MASTER_CENTER_MM}" r="${REEL_DIAMETER_MM / 2}"/></clipPath><clipPath id="frameClip"><rect x="${-FRAME_WIDTH_MM / 2}" y="${-FRAME_HEIGHT_MM / 2}" width="${FRAME_WIDTH_MM}" height="${FRAME_HEIGHT_MM}"/></clipPath></defs>
   <g clip-path="url(#reelClip)">${images.join('')}</g>
   <g fill="none" stroke="#777" stroke-width="0.18" stroke-dasharray="1 0.65">
     <circle cx="${MASTER_CENTER_MM}" cy="${MASTER_CENTER_MM}" r="${REEL_DIAMETER_MM / 2}"/>
@@ -169,17 +178,28 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
     const [building, setBuilding] = useState(false)
     const [progress, setProgress] = useState('')
     const [error, setError] = useState('')
-    const [masterSvg, setMasterSvg] = useState('')
     const [masterPairs, setMasterPairs] = useState<StereoPair[] | null>(null)
+    const [croppingScene, setCroppingScene] = useState<number | null>(null)
 
     const readyCount = useMemo(() => slots.filter(slotReady).length, [slots])
     const generatedCount = useMemo(() => slots.filter(slot => slot.mode === 'single' && !!slot.file).length, [slots])
     const importedPairCount = useMemo(() => slots.filter(slot => slot.mode === 'pair' && !!slot.leftFile && !!slot.rightFile).length, [slots])
+    const masterSvg = useMemo(() => masterPairs ? filmMasterSvg(masterPairs, imageRotation, slots.map(slot => slot.crop)) : '', [masterPairs, imageRotation, slots])
     const masterUrl = useMemo(() => masterSvg ? URL.createObjectURL(new Blob([masterSvg], { type: 'image/svg+xml' })) : '', [masterSvg])
+    useEffect(() => () => { if (masterUrl) URL.revokeObjectURL(masterUrl) }, [masterUrl])
+    useEffect(() => {
+        if (croppingScene === null) return
+        const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCroppingScene(null) }
+        window.addEventListener('keydown', closeOnEscape)
+        return () => window.removeEventListener('keydown', closeOnEscape)
+    }, [croppingScene])
 
     const invalidateMaster = () => {
-        setMasterSvg('')
         setMasterPairs(null)
+    }
+
+    const setCrop = (index: number, axis: keyof CropPosition, value: number) => {
+        setSlots(current => current.map((slot, slotIndex) => slotIndex === index ? { ...slot, crop: { ...slot.crop, [axis]: value } } : slot))
     }
 
     const replaceSlot = (index: number, replacement: ReelSlot) => {
@@ -237,8 +257,8 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
 
     const reset = () => {
         slots.forEach(releaseSlotUrls)
-        if (masterUrl) URL.revokeObjectURL(masterUrl)
         setSlots(emptySlots())
+        setCroppingScene(null)
         invalidateMaster()
         setProgress('')
         setError('')
@@ -288,8 +308,8 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
         ])
         if (!leftResponse.ok || !rightResponse.ok) throw new Error(`Scene ${scene + 1}: eye-image export failed`)
         return {
-            left: await blobToDataUrl(await leftResponse.blob()),
-            right: await blobToDataUrl(await rightResponse.blob()),
+            left: await eyeFromBlob(await leftResponse.blob()),
+            right: await eyeFromBlob(await rightResponse.blob()),
         }
     }
 
@@ -304,14 +324,14 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                 const slot = slots[scene]
                 if (slot.mode === 'pair' && slot.leftFile && slot.rightFile) {
                     setProgress(`Scene ${scene + 1} of 7: using imported stereo pair…`)
-                    pairs.push({ left: await blobToDataUrl(slot.leftFile), right: await blobToDataUrl(slot.rightFile) })
+                    const [left, right] = await Promise.all([eyeFromBlob(slot.leftFile), eyeFromBlob(slot.rightFile)])
+                    pairs.push({ left, right })
                 } else if (slot.file) pairs.push(await fetchPair(slot.file, scene))
                 else throw new Error(`Scene ${scene + 1} is incomplete`)
             }
             setProgress('Laying out fourteen reel frames…')
             setProcessingStage('technique')
             setMasterPairs(pairs)
-            setMasterSvg(filmMasterSvg(pairs, imageRotation))
             setProgress('Reel master ready')
             setProcessingStage('ready')
         } catch (caught) {
@@ -328,7 +348,7 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
         if (!masterPairs) return
         try {
             setError('')
-            await downloadViewMasterPdf(masterPairs, imageRotation)
+            await downloadViewMasterPdf(masterPairs, imageRotation, slots.map(slot => slot.crop))
         } catch (caught) {
             console.error(caught)
             setError(caught instanceof Error ? caught.message : 'View-Master PDF export failed')
@@ -356,11 +376,12 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                             <span className="vmSlotNumber">{index + 1}</span>
                             <div className="vmSlotModeSwitch"><button className={slot.mode === 'single' ? 'active' : ''} onClick={() => setMode(index, 'single')} disabled={building}>1 image</button><button className={slot.mode === 'pair' ? 'active' : ''} onClick={() => setMode(index, 'pair')} disabled={building}>L + R</button></div>
                             <div className={slot.mode === 'pair' ? 'vmSlotPreview vmPairPreview' : 'vmSlotPreview'}>
-                                {slot.mode === 'single' ? (slot.previewUrl ? <img src={slot.previewUrl} alt={`Scene ${index + 1}`} /> : <span className="vmEmptySlot">Choose source image</span>) : <>
-                                    {slot.leftPreviewUrl ? <img src={slot.leftPreviewUrl} alt={`Scene ${index + 1} left`} /> : <span className="vmEyePlaceholder">L</span>}
-                                    {slot.rightPreviewUrl ? <img src={slot.rightPreviewUrl} alt={`Scene ${index + 1} right`} /> : <span className="vmEyePlaceholder">R</span>}
+                                {slot.mode === 'single' ? (slot.previewUrl ? <img src={slot.previewUrl} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1}`} /> : <span className="vmEmptySlot">Choose source image</span>) : <>
+                                    {slot.leftPreviewUrl ? <img src={slot.leftPreviewUrl} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} left`} /> : <span className="vmEyePlaceholder">L</span>}
+                                    {slot.rightPreviewUrl ? <img src={slot.rightPreviewUrl} style={{ objectPosition: `${slot.crop.x * 100}% ${slot.crop.y * 100}%` }} alt={`Scene ${index + 1} right`} /> : <span className="vmEyePlaceholder">R</span>}
                                 </>}
                             </div>
+                            {(slot.previewUrl || slot.leftPreviewUrl || slot.rightPreviewUrl) && <button className="vmCropOpen" onClick={() => setCroppingScene(index)} disabled={building}>Adjust crop</button>}
                             <div className="vmSlotPicks">
                                 {slot.mode === 'single' ? <label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => chooseSingle(index, event)} disabled={building} /><UiIcon name="upload" /> {slot.file ? 'Replace image' : 'Choose image'}</label> : <><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'left', event)} disabled={building} /><UiIcon name="upload" /> {slot.leftFile ? 'Replace L' : 'Choose L'}</label><label className="vmSlotPick"><input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" onChange={(event) => choosePairEye(index, 'right', event)} disabled={building} /><UiIcon name="upload" /> {slot.rightFile ? 'Replace R' : 'Choose R'}</label></>}
                             </div>
@@ -368,6 +389,17 @@ function ViewMasterBuilder({ setProcessingStage, incomingSource, onIncomingSourc
                         </div>
                     })}
                 </div>
+
+                {croppingScene !== null && <div className="vmCropBackdrop" onMouseDown={event => { if (event.target === event.currentTarget) setCroppingScene(null) }}>
+                    <section className="vmCropDialog" role="dialog" aria-modal="true" aria-label={`Adjust scene ${croppingScene + 1} crop`}>
+                        <div className="vmCropHeading"><div><strong>Scene {croppingScene + 1} · Adjust crop</strong><p>Move the view inside the reel frame. The same position is applied to both eyes; your finished PDF and SVG update without rebuilding the scene.</p></div><button onClick={() => setCroppingScene(null)} aria-label="Close crop editor">Close</button></div>
+                        <div className="vmCropFrames">
+                            {(masterPairs ? [{ label: 'Left eye', url: masterPairs[croppingScene].left.url }, { label: 'Right eye', url: masterPairs[croppingScene].right.url }] : slots[croppingScene].mode === 'single' ? [{ label: 'Source image (before stereo generation)', url: slots[croppingScene].previewUrl }] : [{ label: 'Left eye', url: slots[croppingScene].leftPreviewUrl }, { label: 'Right eye', url: slots[croppingScene].rightPreviewUrl }]).map(frame => <div className="vmCropEye" key={frame.label}><span>{frame.label}</span><div className="vmCropFrame">{frame.url ? <img src={frame.url} alt={`${frame.label} cropped to reel frame`} style={{ objectPosition: `${slots[croppingScene].crop.x * 100}% ${slots[croppingScene].crop.y * 100}%` }} /> : <span>No image yet</span>}</div></div>)}
+                        </div>
+                        <div className="vmCropSliders"><label>Left ↔ right <input type="range" min="0" max="100" value={Math.round(slots[croppingScene].crop.x * 100)} onChange={event => setCrop(croppingScene, 'x', Number(event.target.value) / 100)} /></label><label>Top ↕ bottom <input type="range" min="0" max="100" value={Math.round(slots[croppingScene].crop.y * 100)} onChange={event => setCrop(croppingScene, 'y', Number(event.target.value) / 100)} /></label></div>
+                        <div className="vmCropFooter"><button onClick={() => setSlots(current => current.map((slot, index) => index === croppingScene ? { ...slot, crop: { ...CENTER_CROP } } : slot))}>Center crop</button><button onClick={() => setCroppingScene(null)}>Done</button></div>
+                    </section>
+                </div>}
 
                 <div className="vmControls">
                     <div className="vmRange">

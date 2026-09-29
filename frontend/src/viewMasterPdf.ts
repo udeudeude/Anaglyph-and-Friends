@@ -1,7 +1,5 @@
-type StereoPair = {
-    left: string
-    right: string
-}
+import { coverPlacement } from './viewMasterCrop'
+import type { CropPosition, EyeImage, StereoPair } from './viewMasterCrop'
 
 type JpegImage = {
     bytes: Uint8Array
@@ -55,8 +53,8 @@ const loadImage = (dataUrl: string) => new Promise<HTMLImageElement>((resolve, r
     image.src = dataUrl
 })
 
-const dataUrlToJpeg = async (dataUrl: string): Promise<JpegImage> => {
-    const image = await loadImage(dataUrl)
+const dataUrlToJpeg = async (eye: EyeImage): Promise<JpegImage> => {
+    const image = await loadImage(eye.url)
     const canvas = document.createElement('canvas')
     canvas.width = image.naturalWidth
     canvas.height = image.naturalHeight
@@ -104,8 +102,8 @@ const downloadBlob = (blob: Blob, filename: string) => {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: number) {
-    if (pairs.length !== SLOT_COUNT) throw new Error('View-Master PDF export requires seven stereo pairs')
+export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: number, crops: CropPosition[]) {
+    if (pairs.length !== SLOT_COUNT || crops.length !== SLOT_COUNT) throw new Error('View-Master PDF export requires seven stereo pairs and crop positions')
 
     const sources = pairs.flatMap(pair => [pair.left, pair.right])
     const images = await Promise.all(sources.map(dataUrlToJpeg))
@@ -128,16 +126,15 @@ export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: 
             const cos = Math.cos(angle)
             const sin = Math.sin(angle)
             const image = images[imageIndex]
-            const imageAspect = image.width / image.height
-            const frameAspect = frameWidth / frameHeight
-            const drawWidth = imageAspect > frameAspect ? frameHeight * imageAspect : frameWidth
-            const drawHeight = imageAspect > frameAspect ? frameHeight : frameWidth / imageAspect
+            const placement = coverPlacement(image.width, image.height, frameWidth, frameHeight, crops[scene])
+            const drawX = -frameWidth / 2 + placement.x
+            const drawY = frameHeight / 2 - placement.y - placement.height
             const name = `Im${imageIndex + 1}`
             content.push(
                 'q',
                 `${cos.toFixed(6)} ${sin.toFixed(6)} ${(-sin).toFixed(6)} ${cos.toFixed(6)} ${centerX.toFixed(3)} ${centerY.toFixed(3)} cm`,
                 `${(-frameWidth / 2).toFixed(3)} ${(-frameHeight / 2).toFixed(3)} ${frameWidth.toFixed(3)} ${frameHeight.toFixed(3)} re W n`,
-                `${drawWidth.toFixed(3)} 0 0 ${drawHeight.toFixed(3)} ${(-drawWidth / 2).toFixed(3)} ${(-drawHeight / 2).toFixed(3)} cm`,
+                `${placement.width.toFixed(3)} 0 0 ${placement.height.toFixed(3)} ${drawX.toFixed(3)} ${drawY.toFixed(3)} cm`,
                 `/${name} Do`,
                 'Q',
             )
