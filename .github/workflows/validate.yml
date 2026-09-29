@@ -27,6 +27,7 @@ jobs:
       - run: node --experimental-strip-types src/groundPlaneReference.test.mjs
       - run: node --experimental-strip-types src/viewMasterCrop.test.mjs
       - run: node --experimental-strip-types src/viewMasterPdf.test.mjs
+      - run: node --experimental-strip-types src/viewMasterDrop.test.mjs
       - run: npm run lint
       - run: npm run build
 

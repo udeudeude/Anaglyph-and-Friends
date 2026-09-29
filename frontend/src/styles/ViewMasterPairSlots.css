@@ -62,4 +62,9 @@
 .vmSceneBoard .vmSlotPreview { touch-action:none; cursor:grab; user-select:none; }
 .vmSceneBoard .vmSlotPreview:active { cursor:grabbing; }
 .vmSceneBoard .vmSlotPreview img { user-select:none; }
+.vmSceneBoard .vmSlot.vmDropActive { border-color:#a6d1ff; border-style:solid; box-shadow:0 0 0 2px #4b8df8; }
+.vmSceneBoard .vmSlotPreview .vmEmptySlot { text-align:center; line-height:1.5; }
+.vmDropCue { position:absolute; z-index:2; inset:0; display:flex; align-items:center; justify-content:center; gap:3px; color:#fff; background:rgba(17,56,99,.83); font-size:14px; font-weight:850; pointer-events:none; }
+.vmDropCue span { flex:1; height:100%; display:flex; align-items:center; justify-content:center; text-align:center; }
+.vmDropCue span + span { border-left:1px solid #b9d7f7; }
 @media(max-width:900px){ .vmSceneBoard .vmSlot { min-height:0; }.vmMockup { padding:15px; } }
