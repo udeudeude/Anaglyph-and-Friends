@@ -24,5 +24,9 @@ required.push(
  [imageUpload,'Generate AI depth for this image','explicit imported-map replacement'],
  [imageUpload,'activeDepthMapPath(selection, useBrowserDepth','hosted V3 avoids local-only validator'],
  [read('../../backend/app.py'),'@app.route("/depth-map/regenerate"','local forced regeneration endpoint'],
+ [imageUpload,'showDepthGeneration && <div className="depthRegenerate"','hide generation control for unchanged AI map'],
+ [read('./depthGenerators.ts'),'generatorDiffersFromActive','compare model identity rather than Automatic label'],
 );
+if(editor.includes("key === 'd'")) throw new Error('Plain D must not trigger a download');
+if(read('./styles/App.css').includes('.downloadAction::before') || read('./styles/App.css').includes('.previewActions > button:not(.downloadAction)::before')) throw new Error('Do not stack CSS icons over button SVG icons');
 let failed=false;for(const [text,needle,label] of required){if(!text.includes(needle)){console.error(`Missing established feature contract: ${label} (${needle})`);failed=true;}}if(failed)process.exit(1);console.log(`Established feature contract passed (${required.length} checks)`);

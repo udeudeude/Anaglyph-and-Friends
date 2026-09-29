@@ -389,7 +389,6 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             else if (key === 'v') { event.preventDefault(); selectCoreTechnique('parallel'); }
             else if (key === 'x') { event.preventDefault(); selectCoreTechnique('cross'); }
             else if (key === 'f' && previewUrl) { event.preventDefault(); fullscreen(); }
-            else if (key === 'd' && previewUrl) { event.preventDefault(); void downloadCurrent(); }
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
@@ -483,7 +482,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <div className="fullscreenDockHeader">
                         <div><strong>{info.label}</strong><span>Move the pointer above this panel to hide it.</span></div>
                         <button className="printPageAction" onClick={() => void prepareCurrentForPrintPage()} disabled={!previewUrl || fullPreparing || activeTechnique === 'wiggle' || activeTechnique === 'pulfrich'} title={activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'Animated outputs cannot be placed on a static print page.' : 'Send the full-resolution current output directly to Prepare print page'}>Prepare print page</button>
-                    <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>D / ⌘S</kbd></>}</button>
+                    <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button>
                     </div>
                     {genericSettings(true)}
                     {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
@@ -495,7 +494,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 <div className="previewActions">
                     <div className="zoomControls"><button onClick={() => zoomBy(-0.25)} disabled={zoom <= 1}>−</button><button onClick={resetZoom}>{Math.round(zoom * 100)}%</button><button onClick={() => zoomBy(0.25)} disabled={zoom >= 4}>＋</button></div>
                     <button onClick={fullscreen} disabled={!previewUrl}><UiIcon name="expand" /> Fullscreen <kbd>F</kbd></button>
-                    <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>D / ⌘S</kbd></>}</button>
+                    <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button>
                 </div>
             </div>
 
