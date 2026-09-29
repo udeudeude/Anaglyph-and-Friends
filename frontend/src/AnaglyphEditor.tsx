@@ -22,6 +22,7 @@ type Props = {
     onOpenPhantogram: () => void;
     onOpenColorReveal: () => void;
     onOpenLayered: () => void;
+    onOpenTransparency: () => void;
     onOpenPrintCalibration: () => void;
     onOpenPrintPage: () => void;
     onPreparePrintPage: (incoming: PrintPageIncomingArtwork) => void;
@@ -48,7 +49,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenPrintCalibration, onOpenPrintPage, onPreparePrintPage }: Props) {
+function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenTransparency, onOpenPrintCalibration, onOpenPrintPage, onPreparePrintPage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -214,6 +215,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         }
         if (value === '__layered__') {
             onOpenLayered();
+            return;
+        }
+        if (value === '__transparency__') {
+            onOpenTransparency();
             return;
         }
         if (value === '__print_calibration__') {
@@ -455,7 +460,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <optgroup label="Viewers"><option value="cardboard">Cardboard / Phone Viewer</option><option value="stereoscope">Traditional Stereoscope Card</option><option value="mirror">Single-Mirror Stereoscope</option></optgroup>
                     <optgroup label="Animation"><option value="wiggle">Wiggle-gram</option><option value="pulfrich">Pulfrich Motion 3D</option></optgroup>
                     <optgroup label="Autostereograms"><option value="randomdot">Random-Dot Stereogram</option><option value="pattern">Pattern Stereogram</option></optgroup>
-                    <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
+                    <optgroup label="Print"><option value="lenticular">Lenticular 3D</option><option value="__phantogram__">Phantogram</option><option value="__transparency__">Layered Transparency</option><option value="__color_reveal__">RGB Reveal / CMY Layers</option></optgroup>
                     <optgroup label="Compositing"><option value="__layered__">Layered 3D Composite</option></optgroup>
                     <optgroup label="Advanced tools"><option value="__print_calibration__">Print calibration & setup…</option><option value="__print_page__">Prepare print page…</option></optgroup>
                     <option className="techniqueMenuDivider" value="__divider__" disabled>────────────</option>

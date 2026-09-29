@@ -1,0 +1,28 @@
+.transparencyWorkspace { display:grid; gap:16px; max-width:1380px; margin:auto; padding:20px; color:#e2eaf5; }
+.transparencyWorkspace header h2 { margin:4px 0 6px; font-size:27px; }
+.transparencyWorkspace header p { max-width:760px; margin:0; color:#b7c9dc; line-height:1.5; }
+.transparencyNotice,.transparencyError { padding:12px; border:1px solid #695134; border-radius:9px; background:#231c13; color:#ecd3a9; }
+.transparencyError { border-color:#784553; color:#f0b8c2; background:#281920; }
+.transparencyGrid { display:grid; grid-template-columns:minmax(320px,.85fr) minmax(420px,1.15fr); gap:16px; align-items:start; }
+.transparencyControls,.transparencyOutput,.transparencyInstructions { padding:17px; border:1px solid #2a4562; border-radius:12px; background:#0d1d30; }
+.transparencyControls { display:grid; gap:13px; }
+.transparencyControls label { display:grid; gap:7px; color:#ceddec; font-size:13px; font-weight:700; }
+.transparencyControls input[type=number],.transparencyControls select,.transparencyOutput select { width:100%; border:1px solid #4c6b8f; border-radius:7px; padding:8px 10px; background:#0a1728; color:#eff7ff; font-size:14px; }
+.transparencyControls input[type=range] { width:100%; accent-color:#70a9f0; }
+.transparencyControls label strong { color:#aac8e9; font-size:12px; }
+.transparencyControls .transparencyCheck { display:flex; align-items:center; gap:9px; }
+.transparencyHint,.transparencyOutput small { margin:0; color:#a3b9d1; font-size:12px; line-height:1.5; }
+.transparencyControls details,.transparencyInstructions { color:#bbd0e5; font-size:13px; }
+.transparencyControls summary,.transparencyInstructions summary { cursor:pointer; color:#e0ebf6; font-weight:800; }
+.transparencyAdvanced { display:grid; gap:12px; margin-top:12px; }
+.transparencyAdvanced button,.transparencyActions button { padding:9px 12px; border:1px solid #4d82b6; border-radius:8px; color:#eef7ff; background:#1b4774; font-size:13px; font-weight:800; }
+.transparencyActions { display:grid; gap:8px; }
+.transparencyActions button:disabled { opacity:.55; cursor:not-allowed; }
+.transparencyOutput { display:grid; gap:11px; }
+.transparencyOutput label { display:flex; align-items:center; gap:10px; font-size:13px; }
+.transparencyOutput select { width:auto; }
+.transparencyPreview { display:grid; place-items:center; min-height:390px; padding:14px; border:1px solid #355575; border-radius:9px; background:repeating-conic-gradient(#1b3049 0 25%,#102034 0 50%) 0/24px 24px; color:#c3d3e4; text-align:center; }
+.transparencyPreview img { display:block; max-width:100%; max-height:68vh; object-fit:contain; }
+.transparencyInstructions ol { margin:13px 0 0; padding-left:22px; line-height:1.6; }
+.transparencyInstructions li + li { margin-top:8px; }
+@media(max-width:950px){ .transparencyGrid { grid-template-columns:1fr; }.transparencyWorkspace { padding:14px; }.transparencyPreview { min-height:280px; } }
