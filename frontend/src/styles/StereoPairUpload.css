@@ -1,24 +1,24 @@
 .stereoPairSourcePanel { display:flex; flex-direction:column; gap:12px; }
 .pairSourceHeading { display:flex; flex-direction:column; gap:4px; }
 .pairSourceHeading strong { font-size:12px; color:#d8e5f5; }
-.pairSourceHeading span { color:#6e86a3; font-size:9px; line-height:1.45; }
+.pairSourceHeading span { color:#8b9fb6; font-size:12px; line-height:1.45; }
 .pairSourceGrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .pairSourceCard { position:relative; min-height:132px; overflow:hidden; padding:0; border:1px dashed #315071; border-radius:10px; background:#091625; color:#8ca4c0; }
 .pairSourceCard.ready { border-style:solid; border-color:#3d6f9d; }
 .pairSourceCard img { width:100%; height:132px; object-fit:cover; opacity:.78; }
 .pairSourceCard::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(4,11,20,.88)); pointer-events:none; }
-.pairSourceCard em { position:absolute; z-index:2; left:7px; bottom:6px; font-style:normal; font-size:7px; font-weight:850; letter-spacing:.12em; color:#c4d4e8; }
+.pairSourceCard em { position:absolute; z-index:2; left:7px; bottom:6px; font-style:normal; font-size:12px; font-weight:850; letter-spacing:.12em; color:#c4d4e8; }
 .pairEmpty { height:132px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; }
-.pairEmpty strong { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid #355777; border-radius:50%; font-size:11px; }
-.pairEmpty span { font-size:8px; color:#627b98; }
+.pairEmpty strong { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid #355777; border-radius:50%; font-size:12px; }
+.pairEmpty span { font-size:12px; color:#8c9fb4; }
 .pairSourceActions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-.pairSourceActions button { border:1px solid #294663; border-radius:7px; padding:7px 6px; background:#0d1b2d; color:#9db2ca; font-size:8px; font-weight:750; }
+.pairSourceActions button { border:1px solid #294663; border-radius:7px; padding:7px 6px; background:#0d1b2d; color:#9db2ca; font-size:12px; font-weight:750; }
 .pairSourceActions button:last-child { grid-column:1/-1; }
 .pairSourceStatus { padding:9px 10px; border:1px solid #223a55; border-radius:8px; background:#0a1828; display:flex; flex-direction:column; gap:3px; }
-.pairSourceStatus strong { font-size:9px; color:#abc0d8; }
-.pairSourceStatus span { overflow:hidden; text-overflow:ellipsis; color:#617b99; font-size:7px; white-space:nowrap; }
+.pairSourceStatus strong { font-size:12px; color:#abc0d8; }
+.pairSourceStatus span { overflow:hidden; text-overflow:ellipsis; color:#8b9fb4; font-size:12px; white-space:nowrap; }
 
 .pairDepthSource{display:grid;gap:8px;padding:10px;border:1px dashed #2c4967;border-radius:9px;background:#091727}
 .pairDepthSource.ready{border-style:solid;border-color:#3b6f9f}
-.pairDepthSource>div:first-child{display:grid;gap:3px}.pairDepthSource strong{color:#a9bfd8;font-size:9px}.pairDepthSource span{overflow:hidden;text-overflow:ellipsis;color:#68829f;font-size:8px;white-space:nowrap}
-.pairDepthSource>div:last-child{display:flex;gap:6px}.pairDepthSource button{flex:1;border:1px solid #31557d;border-radius:7px;padding:7px;background:#10233a;color:#9fb9d7;font-size:8px;font-weight:750}
+.pairDepthSource>div:first-child{display:grid;gap:3px}.pairDepthSource strong{color:#a9bfd8;font-size:12px}.pairDepthSource span{overflow:hidden;text-overflow:ellipsis;color:#8b9fb5;font-size:12px;white-space:nowrap}
+.pairDepthSource>div:last-child{display:flex;gap:6px}.pairDepthSource button{flex:1;border:1px solid #31557d;border-radius:7px;padding:7px;background:#10233a;color:#9fb9d7;font-size:12px;font-weight:750}
