@@ -4,7 +4,7 @@ import "./styles/ImageUpload.css";
 import { describeBrowserDepthError, generateBrowserDepth, hostedBrowserDepthEnabled } from "./browserDepth";
 import type { BrowserDepthFailureInfo } from "./browserDepth";
 import DepthGeneratorSelector from "./DepthGeneratorSelector";
-import { activeDepthMapPath, AUTOMATIC_DEPTH_GENERATOR, resolveDepthGenerator } from "./depthGenerators";
+import { activeDepthMapPath, AUTOMATIC_DEPTH_GENERATOR, generatorDiffersFromActive, resolveDepthGenerator } from "./depthGenerators";
 import type { DepthGeneratorSelection } from "./depthGenerators";
 import UiIcon from "./UiIcon";
 
@@ -65,7 +65,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const strokePointsRef = useRef<Array<{x: number; y: number}>>([]);
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const useBrowserDepth = hostedBrowserDepthEnabled();
-    const selectedGenerator = resolveDepthGenerator(depthGenerator, useBrowserDepth ? 'browser' : 'local');
+    const depthRuntime = useBrowserDepth ? 'browser' : 'local';
+    const selectedGenerator = resolveDepthGenerator(depthGenerator, depthRuntime);
+    const differentGeneratorSelected = activeAiGenerator !== null && generatorDiffersFromActive(depthGenerator, activeAiGenerator, depthRuntime);
+    const showDepthGeneration = !!sourceFile && (depthSource === 'imported' || depthHistoryCount > 0 || activeAiGenerator === null || differentGeneratorSelected);
 
     const replaceObjectUrl = (setter: (value: string | null) => void, oldUrl: string | null, blob: Blob | null) => {
         if (oldUrl) URL.revokeObjectURL(oldUrl);
@@ -199,14 +202,12 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const changeDepthGenerator = (selection: DepthGeneratorSelection) => {
         if (selection === depthGenerator) return;
         setDepthGenerator(selection);
-        const runtime = useBrowserDepth ? 'browser' : 'local';
-        const activeId = activeAiGenerator && resolveDepthGenerator(activeAiGenerator, runtime).id;
-        const nextId = resolveDepthGenerator(selection, runtime).id;
-        if (depthMapUrl && depthSource === 'ai' && activeId === nextId) {
+        const differentModel = activeAiGenerator === null || generatorDiffersFromActive(selection, activeAiGenerator, depthRuntime);
+        if (depthMapUrl && depthSource === 'ai' && !differentModel) {
             setHostedDepthFailure(null);
-            setDepthSourceMeta(`${resolveDepthGenerator(selection, runtime).name} · current map`);
+            setDepthSourceMeta(`${resolveDepthGenerator(selection, depthRuntime).name} · current map`);
         }
-        if (sourceFile && depthSource === 'ai' && depthHistoryCount === 0 && !depthEditing && isChangeAllowed && activeId !== nextId) {
+        if (sourceFile && depthSource === 'ai' && depthHistoryCount === 0 && !depthEditing && isChangeAllowed && differentModel) {
             void regenerateAiDepth(selection);
         }
     };
@@ -597,11 +598,11 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
             </button>
             <button className="secondaryAction" onClick={pasteFromClipboard} disabled={!isChangeAllowed && !!imageUrl}>Paste image <kbd>⌘V</kbd></button>
             <DepthGeneratorSelector selection={depthGenerator} runtime={useBrowserDepth ? 'browser' : 'local'} disabled={!isChangeAllowed} onChange={changeDepthGenerator} context="image" />
-            {sourceFile && <div className="depthRegenerate">
+            {showDepthGeneration && <div className="depthRegenerate">
                 <button type="button" onClick={() => void regenerateAiDepth()} disabled={!isChangeAllowed || depthMapIsLoading}>
-                    <UiIcon name="reset" /> {depthMapIsLoading ? 'Generating AI depth…' : depthSource === 'imported' ? 'Generate AI depth for this image' : depthHistoryCount ? 'Replace edited map with AI depth' : 'Regenerate AI depth'}
+                    <UiIcon name="reset" /> {depthMapIsLoading ? 'Generating AI depth…' : depthSource === 'imported' || activeAiGenerator === null ? 'Generate AI depth for this image' : depthHistoryCount ? 'Replace edited map with AI depth' : 'Generate depth with selected model'}
                 </button>
-                <small>{depthSource === 'imported' ? 'Your imported map stays active until you choose this.' : depthHistoryCount ? 'This replaces the edited map and its undo history.' : activeAiGenerator && resolveDepthGenerator(activeAiGenerator, useBrowserDepth ? 'browser' : 'local').id !== selectedGenerator.id ? `Current map: ${resolveDepthGenerator(activeAiGenerator, useBrowserDepth ? 'browser' : 'local').name}. Selected: ${selectedGenerator.name}.` : `Uses ${selectedGenerator.name} on the loaded image.`}</small>
+                <small>{depthSource === 'imported' ? 'Your imported map stays active until you choose this.' : depthHistoryCount ? 'This replaces the edited map and its undo history.' : differentGeneratorSelected && activeAiGenerator ? `Current map: ${resolveDepthGenerator(activeAiGenerator, depthRuntime).name}. Selected: ${selectedGenerator.name}.` : `Uses ${selectedGenerator.name} on the loaded image.`}</small>
             </div>}
             <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/tiff" ref={imageInputRef} className="hiddenInput" onClick={(e) => { e.currentTarget.value = ""; }} onChange={handleImageChange} />
             <input type="file" accept=".npy,image/png,image/jpeg,image/jpg,image/webp,image/tiff" ref={depthInputRef} className="hiddenInput" onClick={(e) => { e.currentTarget.value = ""; }} onChange={handleDepthImport} />

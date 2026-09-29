@@ -45,8 +45,6 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .expandRail::before,
 .secondaryAction::before,
 .depthImportAction::before,
-.downloadAction::before,
-.previewActions > button:not(.downloadAction)::before,
 .randomDotActions button::before,
 .toggleSetting:nth-of-type(2) strong::before,
 .primaryAction > .buttonIcon {
@@ -68,9 +66,6 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .primaryAction > .buttonIcon { font-size:0; margin-right:5px; -webkit-mask-image:var(--icon-media-image-plus); mask-image:var(--icon-media-image-plus); }
 .secondaryAction::before { margin-right:6px; -webkit-mask-image:var(--icon-paste-clipboard); mask-image:var(--icon-paste-clipboard); }
 .depthImportAction::before { margin-right:5px; -webkit-mask-image:var(--icon-import); mask-image:var(--icon-import); }
-.downloadAction::before { -webkit-mask-image:var(--icon-download); mask-image:var(--icon-download); }
-.downloadAction:has(.buttonLoader)::before { display:none; }
-.previewActions > button:not(.downloadAction)::before { margin-right:6px; -webkit-mask-image:var(--icon-expand); mask-image:var(--icon-expand); }
 .randomDotActions button::before { margin-right:6px; -webkit-mask-image:var(--icon-shuffle); mask-image:var(--icon-shuffle); }
 .toggleSetting:nth-of-type(2) strong::before { width:14px; height:14px; margin-right:5px; -webkit-mask-image:var(--icon-flip-reverse); mask-image:var(--icon-flip-reverse); }
 

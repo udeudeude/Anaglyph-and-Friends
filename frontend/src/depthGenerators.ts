@@ -32,6 +32,10 @@ export function resolveDepthGenerator(selection: DepthGeneratorSelection, runtim
     return generator
 }
 
+export function generatorDiffersFromActive(selection: DepthGeneratorSelection, activeSelection: DepthGeneratorSelection, runtime: DepthRuntime): boolean {
+    return resolveDepthGenerator(selection, runtime).id !== resolveDepthGenerator(activeSelection, runtime).id
+}
+
 export function activeDepthMapPath(selection: DepthGeneratorSelection, runtime: DepthRuntime): string {
     resolveDepthGenerator(selection, runtime)
     // Browser inference has already imported its output into the session.

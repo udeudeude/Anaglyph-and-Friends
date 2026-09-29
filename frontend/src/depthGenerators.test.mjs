@@ -3,6 +3,7 @@ import {
     AUTOMATIC_DEPTH_GENERATOR,
     DEPTH_GENERATORS,
     activeDepthMapPath,
+    generatorDiffersFromActive,
     resolveDepthGenerator,
 } from './depthGenerators.ts'
 import { v3InputSize, v3NearPixels } from './depthV3Math.ts'
@@ -19,6 +20,9 @@ assert.equal(resolveDepthGenerator('depth-anything-v3-small', 'browser').depthCo
 assert.equal(activeDepthMapPath('depth-anything-v3-small', 'browser'), '/depth-map')
 assert.equal(activeDepthMapPath('automatic', 'browser'), '/depth-map')
 assert.equal(activeDepthMapPath('automatic', 'local'), '/depth-map?generator=automatic')
+assert.equal(generatorDiffersFromActive('automatic', 'depth-anything-v2-small', 'browser'), false)
+assert.equal(generatorDiffersFromActive('depth-anything-v2-small', 'automatic', 'local'), false)
+assert.equal(generatorDiffersFromActive('depth-anything-v3-small', 'automatic', 'browser'), true)
 assert.throws(() => activeDepthMapPath('depth-anything-v3-small', 'local'), /unavailable/)
 assert.throws(() => resolveDepthGenerator('depth-anything-v3-small', 'local'), /unavailable/)
 assert.throws(() => resolveDepthGenerator('depth-pro', 'local'), /unavailable/)
