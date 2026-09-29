@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { CENTER_CROP, coverPlacement } from './viewMasterCrop.ts'
+import { CENTER_CROP, coverPlacement, draggedCrop } from './viewMasterCrop.ts'
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} differs from ${expected}`)
 
@@ -27,4 +27,7 @@ for (const [width, height] of [[300, 150], [240, 180]]) {
     assert.ok(frame.x + frame.width >= 11.75 && frame.y + frame.height >= 10.5)
 }
 assert.throws(() => coverPlacement(0, 100, 100, 100, CENTER_CROP), /positive dimensions/)
+assert.deepEqual(draggedCrop(200, 100, 100, 100, CENTER_CROP, 25, 30), { x: 0.25, y: 0.5 })
+assert.deepEqual(draggedCrop(100, 200, 100, 100, CENTER_CROP, 20, -25), { x: 0.5, y: 0.75 })
+assert.deepEqual(draggedCrop(200, 100, 100, 100, CENTER_CROP, -1000, 0), { x: 1, y: 0.5 })
 console.log('View-Master crop geometry passed')
