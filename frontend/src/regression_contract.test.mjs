@@ -13,6 +13,12 @@ const required=[
  [depthCatalog,"id: 'depth-anything-v2-small'",'verified V2 generator catalog'],[depthCatalog,"id: 'depth-anything-v3-small'",'optional browser V3 catalog'],[depthCatalog,"RECOMMENDED_GENERATOR: DepthGeneratorId = 'depth-anything-v2-small'",'V2 remains automatic'],[depthCatalog,"'near-is-high'",'depth nearness convention'],[depthSelector,'Automatic (recommended)','simple default generator choice'],[imageUpload,'<DepthGeneratorSelector','Studio advanced generator selection'],[imageUpload,'generateBrowserDepth(file, setDepthSourceMeta, selection)','Studio browser generator dispatch'],[viewMaster,'<DepthGeneratorSelector','View-Master advanced generator selection'],[viewMaster,'depthGenerator)','View-Master browser generator dispatch'],[browserDepth,'resolveDepthGenerator(selection, \'browser\')','browser generator validation'],[browserDepth,"import('./browserDepthV3')",'V3 adapter loaded only when chosen'],[browserDepthV3,"executionProviders: ['webgpu']",'V3 WebGPU startup'],[browserDepthV3,"executionProviders: ['wasm']",'V3 browser CPU fallback'],[browserDepthV3,'v3NearPixels','V3 distance-to-nearness conversion'],
 ];
 required.push(
+ [viewMaster,'Adjust crop','View-Master per-scene crop editor'],
+ [viewMaster,'setMasterPairs(pairs)','View-Master eye images retained without rerunning AI for framing'],
+ [viewMaster,'filmMasterSvg(masterPairs, imageRotation, slots.map(slot => slot.crop))','SVG uses current per-scene crop positions'],
+ [viewMaster,'downloadViewMasterPdf(masterPairs, imageRotation, slots.map(slot => slot.crop))','PDF uses current per-scene crop positions'],
+ [viewMaster,'clip-path="url(#frameClip)"','SVG crop remains within reel frame'],
+ [viewMasterPdf,'coverPlacement(image.width, image.height, frameWidth, frameHeight, crops[scene])','PDF uses shared crop geometry'],
  [phantogram,'Open wireframe comparison','viewing aid accessible in every phantogram mode'],
  [phantogram,'Download reference PDF','photographed ground-plane reference workflow'],
  [read('./groundPlaneReference.ts'),'REFERENCE_WIDTH_IN = 8','known 8-inch ground-plane border'],

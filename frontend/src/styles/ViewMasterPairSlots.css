@@ -13,4 +13,21 @@
 .vmSlotPick input { position:absolute; inset:auto; width:1px; height:1px; opacity:0; pointer-events:none; }
 .vmOpenStudio { position:absolute; z-index:5; left:7px; right:7px; bottom:7px; border:1px solid #29445f; border-radius:6px; padding:5px 4px; color:#889fba; background:rgba(8,20,34,.96); font-size:12px; font-weight:750; }
 .vmSlot .vmEmptySlot { bottom:82px; color:#8c9fb3; font-size:12px; }
+.vmCropOpen { position:absolute; z-index:5; left:7px; bottom:86px; border:1px solid #5d82a8; border-radius:6px; padding:6px 9px; color:#f0f6ff; background:rgba(12,35,60,.96); font-size:12px; font-weight:800; }
+.vmCropBackdrop { position:fixed; z-index:1000; inset:0; display:flex; align-items:center; justify-content:center; padding:18px; background:rgba(2,8,16,.83); }
+.vmCropDialog { width:min(740px,100%); max-height:calc(100vh - 36px); overflow:auto; padding:20px; border:1px solid #527ca8; border-radius:14px; background:#102138; box-shadow:0 20px 70px #0009; color:#e7f1ff; }
+.vmCropHeading { display:flex; justify-content:space-between; gap:18px; align-items:start; }
+.vmCropHeading strong { font-size:18px; }
+.vmCropHeading p { margin:7px 0 18px; color:#b6c9df; line-height:1.5; font-size:13px; }
+.vmCropHeading button,.vmCropFooter button { border:1px solid #688ab0; border-radius:7px; padding:8px 13px; color:#e8f3ff; background:#214265; font-weight:750; }
+.vmCropFrames { display:flex; gap:16px; justify-content:center; }
+.vmCropEye { flex:1; min-width:0; max-width:360px; }
+.vmCropEye>span { display:block; margin-bottom:7px; font-weight:750; }
+.vmCropFrame { aspect-ratio:11.75/10.5; overflow:hidden; display:flex; align-items:center; justify-content:center; border:2px solid #86add7; background:#071422; color:#b6c9df; }
+.vmCropFrame img { width:100%; height:100%; object-fit:cover; }
+.vmCropSliders { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0; }
+.vmCropSliders label { display:flex; flex-direction:column; gap:10px; color:#d3e2f4; font-weight:750; }
+.vmCropSliders input { width:100%; accent-color:#71a8f5; }
+.vmCropFooter { display:flex; justify-content:space-between; }
+@media(max-width:600px){ .vmCropSliders { grid-template-columns:1fr; }.vmCropDialog { padding:14px; }.vmCropFrames { gap:8px; } }
 @media(max-width:900px){ .vmSlot { min-height:225px; } }
