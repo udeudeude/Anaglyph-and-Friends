@@ -31,3 +31,35 @@
 .vmCropFooter { display:flex; justify-content:space-between; }
 @media(max-width:600px){ .vmCropSliders { grid-template-columns:1fr; }.vmCropDialog { padding:14px; }.vmCropFrames { gap:8px; } }
 @media(max-width:900px){ .vmSlot { min-height:225px; } }
+
+/* Seven scenes form the top and left edges of a four-column reel work area. */
+.vmSceneBoard { overflow-x:auto; }
+.vmSceneBoard .vmSlotGrid { grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(4,minmax(0,auto)); gap:10px; min-width:720px; align-items:stretch; }
+.vmSceneBoard .vmSlot { position:relative; display:flex; flex-direction:column; min-height:0; aspect-ratio:auto; padding:7px; cursor:default; }
+.vmSceneBoard .vmSlot::after { display:none; }
+.vmSlotHeader { display:flex; align-items:center; justify-content:space-between; gap:4px; min-height:27px; margin-bottom:6px; }
+.vmSceneBoard .vmSlotNumber,.vmSceneBoard .vmSlotModeSwitch { position:static; flex:none; }
+.vmSceneBoard .vmSlotPreview { position:relative; inset:auto; width:100%; aspect-ratio:11.75/10.5; display:flex; align-items:stretch; border:1px solid #6888aa; border-radius:8px; overflow:hidden; background:#0b1c2e; }
+.vmSceneBoard .vmSlotPreview>img { display:block; flex:none; width:100%; height:100%; opacity:1; object-fit:cover; }
+.vmSceneBoard .vmPairPreview { align-items:center; justify-content:center; gap:3px; }
+.vmSceneBoard .vmPairPreview>img,.vmSceneBoard .vmPairPreview>.vmEyePlaceholder { width:calc(50% - 2px); height:auto; aspect-ratio:11.75/10.5; flex:none; object-fit:cover; }
+.vmSceneBoard .vmSlot .vmEmptySlot { position:static; flex:1; color:#b4c8dd; }
+.vmSceneBoard .vmSlotFooter { display:flex; flex-direction:column; gap:5px; margin-top:auto; padding-top:7px; }
+.vmSceneBoard .vmSlotPicks,.vmSceneBoard .vmCropOpen,.vmSceneBoard .vmOpenStudio { position:static; width:100%; }
+.vmSceneBoard .vmSlotPicks { display:flex; }
+.vmSceneBoard .vmCropOpen { text-align:center; }
+.vmSceneBoard .vmOpenStudio { margin:0; }
+.vmMockup { grid-column:2/5; grid-row:2/5; min-width:0; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; border:1px solid #365b80; border-radius:12px; background:radial-gradient(circle,#213a57 0,#0b1b2e 72%); }
+.vmMockupHead { align-self:stretch; display:flex; justify-content:space-between; gap:10px; color:#dbeafb; font-size:15px; }
+.vmMockupHead span { color:#a6bdd5; font-size:12px; }
+.vmMockup svg { display:block; width:min(100%,700px); max-height:760px; aspect-ratio:1; filter:drop-shadow(0 14px 20px #0008); }
+.vmTitleField { display:flex; align-items:center; gap:10px; width:min(100%,420px); color:#dbeafb; font-size:13px; font-weight:750; }
+.vmTitleField input { flex:1; min-width:0; padding:8px 10px; border:1px solid #5179a4; border-radius:7px; color:#eff7ff; background:#0a1a2c; font-size:13px; }
+.vmMockup small { color:#a6bdd5; text-align:center; }
+.vmCropFrame { border-radius:8px; touch-action:none; cursor:grab; user-select:none; }
+.vmCropFrame:active { cursor:grabbing; }
+.vmCropFrame img { user-select:none; }
+.vmSceneBoard .vmSlotPreview { touch-action:none; cursor:grab; user-select:none; }
+.vmSceneBoard .vmSlotPreview:active { cursor:grabbing; }
+.vmSceneBoard .vmSlotPreview img { user-select:none; }
+@media(max-width:900px){ .vmSceneBoard .vmSlot { min-height:0; }.vmMockup { padding:15px; } }

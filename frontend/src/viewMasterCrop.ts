@@ -16,3 +16,12 @@ export function coverPlacement(sourceWidth: number, sourceHeight: number, frameW
     const clamp = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0.5))
     return { x: clamp(crop.x) === 0 ? 0 : (frameWidth - width) * clamp(crop.x), y: clamp(crop.y) === 0 ? 0 : (frameHeight - height) * clamp(crop.y), width, height }
 }
+
+export function draggedCrop(sourceWidth: number, sourceHeight: number, frameWidth: number, frameHeight: number, start: CropPosition, deltaX: number, deltaY: number): CropPosition {
+    const placement = coverPlacement(sourceWidth, sourceHeight, frameWidth, frameHeight, start)
+    const clamp = (value: number) => Math.min(1, Math.max(0, value))
+    return {
+        x: placement.width > frameWidth ? clamp(start.x - deltaX / (placement.width - frameWidth)) : start.x,
+        y: placement.height > frameHeight ? clamp(start.y - deltaY / (placement.height - frameHeight)) : start.y,
+    }
+}

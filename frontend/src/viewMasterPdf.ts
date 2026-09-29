@@ -85,6 +85,21 @@ const circlePath = (cx: number, cy: number, radius: number) => {
     ].join('\n')
 }
 
+const roundedRectPath = (x: number, y: number, width: number, height: number, radius: number) => {
+    const k = radius * 0.552284749831
+    const n = (value: number) => value.toFixed(3)
+    return [
+        `${n(x + radius)} ${n(y)} m`, `${n(x + width - radius)} ${n(y)} l`,
+        `${n(x + width - radius + k)} ${n(y)} ${n(x + width)} ${n(y + radius - k)} ${n(x + width)} ${n(y + radius)} c`,
+        `${n(x + width)} ${n(y + height - radius)} l`,
+        `${n(x + width)} ${n(y + height - radius + k)} ${n(x + width - radius + k)} ${n(y + height)} ${n(x + width - radius)} ${n(y + height)} c`,
+        `${n(x + radius)} ${n(y + height)} l`,
+        `${n(x + radius - k)} ${n(y + height)} ${n(x)} ${n(y + height - radius + k)} ${n(x)} ${n(y + height - radius)} c`,
+        `${n(x)} ${n(y + radius)} l`,
+        `${n(x)} ${n(y + radius - k)} ${n(x + radius - k)} ${n(y)} ${n(x + radius)} ${n(y)} c`, 'h',
+    ].join('\n')
+}
+
 const pdfObject = (id: number, parts: Uint8Array[]) => joinBytes([
     encode(`${id} 0 obj\n`),
     ...parts,
@@ -102,7 +117,7 @@ const downloadBlob = (blob: Blob, filename: string) => {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: number, crops: CropPosition[]) {
+export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: number, crops: CropPosition[], reelTitle = '') {
     if (pairs.length !== SLOT_COUNT || crops.length !== SLOT_COUNT) throw new Error('View-Master PDF export requires seven stereo pairs and crop positions')
 
     const sources = pairs.flatMap(pair => [pair.left, pair.right])
@@ -133,12 +148,15 @@ export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: 
             content.push(
                 'q',
                 `${cos.toFixed(6)} ${sin.toFixed(6)} ${(-sin).toFixed(6)} ${cos.toFixed(6)} ${centerX.toFixed(3)} ${centerY.toFixed(3)} cm`,
-                `${(-frameWidth / 2).toFixed(3)} ${(-frameHeight / 2).toFixed(3)} ${frameWidth.toFixed(3)} ${frameHeight.toFixed(3)} re W n`,
+                roundedRectPath(-frameWidth / 2, -frameHeight / 2, frameWidth, frameHeight, mmToPt(0.45)), 'W n',
                 `${placement.width.toFixed(3)} 0 0 ${placement.height.toFixed(3)} ${drawX.toFixed(3)} ${drawY.toFixed(3)} cm`,
                 `/${name} Do`,
                 'Q',
             )
             imageIndex += 1
+            const labelPoint = pointOnCircle(FRAME_CENTER_RADIUS_MM - 8, centerAngle)
+            const label = `${scene + 1}${eye === 'left' ? 'L' : 'R'}`
+            content.push('q', '0.3 g', 'BT', '/F1 4.3 Tf', `${(mmToPt(labelPoint.x) - 2).toFixed(3)} ${(pageSize - mmToPt(labelPoint.y) - 1.5).toFixed(3)} Td`, `(${label}) Tj`, 'ET', 'Q')
         })
     })
 
@@ -146,6 +164,9 @@ export async function downloadViewMasterPdf(pairs: StereoPair[], imageRotation: 
     content.push('0.28 G', '0.51 w', '[2.8 1.8] 0 d')
     content.push(circlePath(center, center, mmToPt(REEL_DIAMETER_MM / 2)), 'S')
     content.push(circlePath(center, center, mmToPt(3.5)), 'S')
+    const printableTitle = reelTitle.replace(/[^\x20-\x7E]/g, '?').replace(/[\\()]/g, '\\$&')
+    const titleWidth = reelTitle.length * mmToPt(1.1)
+    content.push('q', '0.2 g', 'BT', '/F1 6 Tf', `${(center - titleWidth / 2).toFixed(3)} ${(pageSize - mmToPt(43)).toFixed(3)} Td`, `(${printableTitle}) Tj`, 'ET', 'Q')
 
     for (let index = 0; index < SLOT_COUNT; index += 1) {
         const angleDeg = -90 + index * (360 / SLOT_COUNT)
