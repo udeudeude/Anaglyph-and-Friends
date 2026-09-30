@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { isolateSheet, readDepthNpy, type DepthImage } from './layeredTransparency'
+import { renderSheet, readDepthNpy, type DepthImage, type SheetMode } from './layeredTransparency'
 import { layeredTransparencyPdf, type PrintPageImage } from './layeredTransparencyPdf'
 import './styles/LayeredTransparencyBuilder.css'
 
 type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' | 'full' | 'ready' | 'error'
 type Props = { isDepthMapReady: boolean; sourceFile: File | null; setProcessingStage: (stage: ProcessingStage) => void }
-type Settings = { count: number; backgroundPct: number; reverse: boolean; artworkWidthIn: number; dpi: number; spacing: 'rack' | 'measured'; spacingMm: string }
-const defaults: Settings = { count: 10, backgroundPct: 25, reverse: false, artworkWidthIn: 2.5, dpi: 300, spacing: 'rack', spacingMm: '' }
+type Settings = { count: number; mode: SheetMode; backgroundPct: number; reverse: boolean; artworkWidthIn: number; dpi: number; spacing: 'rack' | 'measured'; spacingMm: string }
+const defaults: Settings = { count: 10, mode: 'cumulative', backgroundPct: 25, reverse: false, artworkWidthIn: 2.5, dpi: 300, spacing: 'rack', spacingMm: '' }
 const loadSettings = (): Settings => { try { return { ...defaults, ...JSON.parse(localStorage.getItem('aaf-layered-transparency') || '{}') } } catch { return defaults } }
 const makeCanvas = (width: number, height: number) => { const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; return canvas }
 const canvasBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) => new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not encode a transparency page.')), type, quality))
@@ -95,8 +95,8 @@ function LayeredTransparencyBuilder({ isDepthMapReady, sourceFile, setProcessing
     }, [sourceFile, settings.artworkWidthIn, settings.dpi])
     const renderLayer = useCallback(async (scope: 'preview' | 'full', index: number) => {
         if (!depth) throw new Error('Load the active depth map first.')
-        return isolateSheet(await prepareSource(scope), depth, index, settings.count, settings.backgroundPct / 100, settings.reverse)
-    }, [prepareSource, depth, settings.count, settings.backgroundPct, settings.reverse])
+        return renderSheet(await prepareSource(scope), depth, index, settings.count, settings.backgroundPct / 100, settings.reverse, settings.mode)
+    }, [prepareSource, depth, settings.count, settings.backgroundPct, settings.reverse, settings.mode])
     useEffect(() => {
         if (!ready) { setPreviewUrl(null); return }
         let cancelled = false
@@ -121,7 +121,7 @@ function LayeredTransparencyBuilder({ isDepthMapReady, sourceFile, setProcessing
             const source = await prepareSource('full')
             if (!depth) throw new Error('Load the active depth map first.')
             for (let index = 0; index < settings.count; index += 1) {
-                const image = isolateSheet(source, depth, index, settings.count, settings.backgroundPct / 100, settings.reverse)
+                const image = renderSheet(source, depth, index, settings.count, settings.backgroundPct / 100, settings.reverse, settings.mode)
                 const page = printPage(image, index, settings.count, settings, kind)
                 pages.push({ jpeg: new Uint8Array(await (await canvasBlob(page, 'image/jpeg', .94)).arrayBuffer()), width: page.width, height: page.height })
                 // Release each large page before building the next one.
@@ -135,12 +135,14 @@ function LayeredTransparencyBuilder({ isDepthMapReady, sourceFile, setProcessing
     }
 
     return <main className="transparencyWorkspace">
-        <header><div className="panelLabel">PRINT / PHYSICAL DEPTH</div><h2>Layered Transparency</h2><p>Split the current image across clear sheets using its active depth map. Stack the sheets from front to back for real parallax.</p></header>
+        <header><div className="panelLabel">PRINT / PHYSICAL DEPTH</div><h2>Layered Transparency</h2><p>Place the current image on clear sheets using its active depth map. Stack the sheets from front to back for real parallax.</p></header>
         {!isDepthMapReady && <div className="transparencyNotice">Load a single image and make or import its depth map in 3D Studio first.</div>}
         <div className="transparencyGrid"><section className="transparencyControls">
             <label>Sheets, including the back image <input type="number" min="2" max="10" step="1" value={settings.count} onChange={event => patch({ count: Math.min(10, Math.max(2, Number(event.target.value) || 2)), backgroundPct: settings.backgroundPct })} /></label>
+            <label>What goes on each sheet <select value={settings.mode} onChange={event => patch({ mode: event.target.value as SheetMode })}><option value="cumulative">Cumulative · repeat everything in front (standard)</option><option value="isolated">Separate depth slices</option><option value="full-back">Separate slices · full photograph on back</option></select></label>
+            <p className="transparencyHint">{settings.mode === 'cumulative' ? 'Sheet 1 has the nearest slice. Each following sheet contains its own slice and every slice in front of it; the back sheet contains the complete image.' : settings.mode === 'isolated' ? 'Each pixel appears on only one sheet, including the back. This is the original method.' : 'Front sheets have separate depth slices. The back sheet contains the complete image, repeating the foreground there.'}</p>
             <label>Background compressed onto back sheet <input type="range" min="0" max="90" step="1" value={settings.backgroundPct} onChange={event => patch({ backgroundPct: Number(event.target.value) })} /><strong>{settings.backgroundPct}% of depth range</strong></label>
-            <p className="transparencyHint">Higher values move more distant detail onto one back image. Nearer detail is distributed among the other sheets. Blank areas remain clear.</p>
+            <p className="transparencyHint">Higher values assign more distant detail to the back sheet. Nearer detail is distributed among the other sheets. Blank areas remain clear on the front sheets.</p>
             <label className="transparencyCheck"><input type="checkbox" checked={settings.reverse} onChange={event => patch({ reverse: event.target.checked })} /> Reverse near and far</label>
             <label>Artwork width on each letter page (inches) <input type="number" min=".5" max="7" step=".1" value={settings.artworkWidthIn} onChange={event => patch({ artworkWidthIn: Math.min(7, Math.max(.5, Number(event.target.value) || .5)) })} /></label>
             <p className="transparencyHint">Height follows the source image: {heightIn?.toFixed(2) || '—'} in. The 2.5 in starting size is an example, not a measured Rack-O fit. Measure your rack before trimming.</p>
@@ -154,7 +156,7 @@ function LayeredTransparencyBuilder({ isDepthMapReady, sourceFile, setProcessing
             <div className="transparencyActions"><button disabled={!ready || busy} onClick={() => void exportPages('color')}>{busy ? 'Preparing pages…' : `Download ${settings.count} transparency pages · PDF`}</button><button disabled={!ready || busy} onClick={() => void exportPages('mask')}>Download white backing cut guides · PDF</button></div>
             {error && <div className="transparencyError">{error}</div>}
         </section><section className="transparencyOutput"><strong>Preview one sheet</strong><label>Sheet <select value={Math.min(selected, settings.count - 1)} onChange={event => setSelected(Number(event.target.value))}>{Array.from({ length: settings.count }, (_, index) => <option key={index} value={index}>{index + 1} / {settings.count} {index === settings.count - 1 ? '· back image' : ''}</option>)}</select></label><div className="transparencyPreview">{previewUrl ? <img src={previewUrl} alt={`Transparent sheet ${Math.min(selected, settings.count - 1) + 1}`} /> : <span>Load an image and depth map to preview a sheet.</span>}</div><small>Checkerboard areas remain transparent. Labels and cut guides print outside the image.</small></section></div>
-        <details className="transparencyInstructions"><summary>Explanation &amp; assembly instructions</summary><ol><li>Start in Studio with a photograph and its active depth map. Edit the map first if subjects are assigned to the wrong depth. The light values are near by default.</li><li>Print the transparency PDF on suitable clear film at 100% / Actual Size. Sheet 1 faces the viewer; the highest number goes at the back. Keep the pages in order and register their printed corner marks before cutting.</li><li>Use the Rack-O rack as an evenly spaced holder if the trimmed film fits your particular rack. No slot gap or card dimensions are assumed. For other holders, measure the gap and enter it above.</li><li>Ordinary printer white usually means no ink on clear film. To make an object opaque, paint white behind its colored regions or cut white paper using the matching labeled cut-guide page and place it behind that film, facing the same way. White backing also blocks layers behind that object; use it selectively for a more transparent effect.</li><li>The back sheet gathers the chosen far-depth range. A photograph contains no information about scenery hidden behind a foreground object, so moving your head may reveal empty gaps. Reduce the depth spread, edit the source, or paint/fill those regions manually if needed. A side view has real parallax, but this is a set of discrete planes rather than a continuous solid object.</li></ol></details>
+        <details className="transparencyInstructions"><summary>Explanation &amp; assembly instructions</summary><ol><li>Start in Studio with a photograph and its active depth map. Edit the map first if subjects are assigned to the wrong depth. The light values are near by default.</li><li>Choose how sheets build up. Cumulative repeats each foreground shape on every sheet behind it, ending with the complete image. Separate slices prints a pixel once. Separate slices with a full back repeats foreground only on the back sheet. Repetition can strengthen color and create visible echoes when viewed obliquely; try the alternatives if that is distracting.</li><li>Print the transparency PDF on suitable clear film at 100% / Actual Size. Sheet 1 faces the viewer; the highest number goes at the back. Keep the pages in order and register their printed corner marks before cutting.</li><li>Use the Rack-O rack as an evenly spaced holder if the trimmed film fits your particular rack. No slot gap or card dimensions are assumed. For other holders, measure the gap and enter it above.</li><li>Ordinary printer white usually means no ink on clear film. To make an object opaque, paint white behind its colored regions or cut white paper using the matching labeled cut-guide page and place it behind that film, facing the same way. White backing also blocks layers behind that object; use it selectively for a more transparent effect.</li><li>A full back image repeats only the visible photograph, not scenery hidden behind foreground objects. Moving your head can reveal gaps or repeated silhouettes. Reduce the depth spread, edit the source, or paint/fill those regions manually if needed. A side view has real parallax, but this is a set of discrete planes rather than a continuous solid object.</li></ol></details>
     </main>
 }
 

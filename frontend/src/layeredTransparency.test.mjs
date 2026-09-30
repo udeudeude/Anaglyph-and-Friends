@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readDepthNpy, sheetForDepth, isolateSheet } from './layeredTransparency.ts'
+import { readDepthNpy, sheetForDepth, isolateSheet, renderSheet } from './layeredTransparency.ts'
 
 const headerText = "{'descr': '<f4', 'fortran_order': False, 'shape': (1, 5), }"
 const padding = ' '.repeat((16 - (10 + headerText.length + 1) % 16) % 16)
@@ -27,5 +27,16 @@ for (let pixel = 0; pixel < 5; pixel += 1) {
     const owners = layers.filter(layer => layer.data[pixel * 4 + 3] === 255)
     assert.equal(owners.length, 1, 'each source pixel belongs to one physical sheet')
     assert.equal(owners[0].data[pixel * 4], source.data[pixel * 4])
+}
+const cumulative = Array.from({ length: 4 }, (_, i) => renderSheet(source, depth, i, 4, .25))
+const fullBack = Array.from({ length: 4 }, (_, i) => renderSheet(source, depth, i, 4, .25, false, 'full-back'))
+for (let pixel = 0; pixel < 5; pixel += 1) {
+    const owner = sheetForDepth(depth.values[pixel], 4, .25)
+    for (let index = 0; index < 4; index += 1) {
+        assert.equal(cumulative[index].data[pixel * 4 + 3] === 255, owner <= index, 'cumulative sheets repeat every foreground pixel behind its first sheet')
+        assert.equal(fullBack[index].data[pixel * 4 + 3] === 255, index === owner || index === 3, 'separate slices repeat only on the full back')
+    }
+    assert.equal(cumulative[3].data[pixel * 4], source.data[pixel * 4], 'cumulative back retains the complete image')
+    assert.equal(fullBack[3].data[pixel * 4], source.data[pixel * 4], 'full-back mode retains the complete image')
 }
 console.log('Layered transparency depth parsing and sheet assignment passed')
