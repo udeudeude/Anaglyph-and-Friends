@@ -1,4 +1,5 @@
 export type DepthImage = { width: number; height: number; values: Float32Array }
+export type SheetMode = 'cumulative' | 'isolated' | 'full-back'
 
 // The active depth map is saved by the backend as a little-endian NumPy float32 array.
 export function readDepthNpy(buffer: ArrayBuffer): DepthImage {
@@ -30,7 +31,7 @@ export function sheetForDepth(value: number, count: number, backgroundCutoff: nu
     return assignSheet(value, count, Math.max(0, Math.min(.95, backgroundCutoff)), reverse)
 }
 
-export function isolateSheet(source: ImageData, depth: DepthImage, index: number, count: number, backgroundCutoff: number, reverse = false): ImageData {
+export function renderSheet(source: ImageData, depth: DepthImage, index: number, count: number, backgroundCutoff: number, reverse = false, mode: SheetMode = 'cumulative'): ImageData {
     const { width, height } = source
     if (index < 0 || index >= count) throw new Error('Sheet index is outside the stack.')
     if (!Number.isInteger(count) || count < 2 || count > 10) throw new Error('Choose 2 to 10 sheets.')
@@ -41,9 +42,17 @@ export function isolateSheet(source: ImageData, depth: DepthImage, index: number
         for (let x = 0; x < width; x += 1) {
             const depthX = Math.min(depth.width - 1, Math.floor((x + .5) * depth.width / width))
             const pixel = (y * width + x) * 4
-            if (assignSheet(depth.values[depthY * depth.width + depthX], count, cutoff, reverse) !== index) continue
+            const owner = assignSheet(depth.values[depthY * depth.width + depthX], count, cutoff, reverse)
+            const included = mode === 'cumulative' ? owner <= index :
+                mode === 'full-back' && index === count - 1 ? true : owner === index
+            if (!included) continue
             output.data.set(source.data.subarray(pixel, pixel + 4), pixel)
         }
     }
     return output
+}
+
+// Retain the original single-plane operation for existing callers.
+export function isolateSheet(source: ImageData, depth: DepthImage, index: number, count: number, backgroundCutoff: number, reverse = false): ImageData {
+    return renderSheet(source, depth, index, count, backgroundCutoff, reverse, 'isolated')
 }
