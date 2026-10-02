@@ -27,6 +27,9 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-anaglyph-and-friends")
 
 KERNEL_WIDTH = 15
 PREVIEW_MAX_DIMENSION = 1600
+# The free hosted instance cannot build two 12 MP eye images and their working
+# arrays at once. Local exports retain the original dimensions.
+HOSTED_EXPORT_MAX_DIMENSION = 1800
 DEPTH_EDIT_HISTORY_LIMIT = 40
 RECOMMENDED_LOCAL_DEPTH_GENERATOR = "depth-anything-v2-small"
 SESSION_DATA_FOLDER = "resources/session_data"
@@ -133,14 +136,23 @@ def resize_image_and_depth(image, depth_map, max_dimension):
     return image_resized, np.clip(depth_resized, 0.0, 1.0).astype(np.float32)
 
 
+def export_max_dimension(scope):
+    if scope == "preview":
+        return PREVIEW_MAX_DIMENSION
+    if scope == "full" and os.getenv("AAF_BROWSER_DEPTH", "false").lower() == "true":
+        return HOSTED_EXPORT_MAX_DIMENSION
+    return None
+
+
 def source_and_depth(scope="preview", max_dimension=PREVIEW_MAX_DIMENSION):
     ensure_depth_maps()
     image = cv2.imread(session_path("image.png"))
     depth = np.load(session_path("depth_map.npy"), allow_pickle=False).astype(np.float32)
     if image is None:
         raise FileNotFoundError("No uploaded source image is available")
-    if scope == "preview":
-        image, depth = resize_image_and_depth(image, depth, max_dimension)
+    limit = max_dimension if scope == "preview" else export_max_dimension(scope)
+    if limit is not None:
+        image, depth = resize_image_and_depth(image, depth, limit)
     return image, depth
 
 
@@ -561,13 +573,14 @@ def cache_paths(scope):
     }
 
 
-def cache_matches(meta_path, pop_out, max_disparity_percentage):
+def cache_matches(meta_path, pop_out, max_disparity_percentage, export_limit):
     try:
         with open(meta_path, "r", encoding="utf-8") as handle:
             meta = json.load(handle)
         return (
             bool(meta.get("pop_out")) == bool(pop_out)
             and abs(float(meta.get("max_disparity_percentage")) - float(max_disparity_percentage)) < 1e-9
+            and meta.get("export_limit") == export_limit
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return False
@@ -576,7 +589,8 @@ def cache_matches(meta_path, pop_out, max_disparity_percentage):
 def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
     ensure_depth_maps()
     paths = cache_paths(scope)
-    if os.path.exists(paths["left"]) and os.path.exists(paths["right"]) and cache_matches(paths["meta"], pop_out, max_disparity_percentage):
+    export_limit = export_max_dimension(scope)
+    if os.path.exists(paths["left"]) and os.path.exists(paths["right"]) and cache_matches(paths["meta"], pop_out, max_disparity_percentage, export_limit):
         return paths
 
     image = cv2.imread(session_path("image.png"))
@@ -584,8 +598,8 @@ def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
     if image is None:
         raise FileNotFoundError("No uploaded source image is available")
 
-    if scope == "preview":
-        image, depth_map = resize_image_and_depth(image, depth_map, PREVIEW_MAX_DIMENSION)
+    if export_limit is not None:
+        image, depth_map = resize_image_and_depth(image, depth_map, export_limit)
 
     left_image, right_image = anaglyph_generator.generate_stereo_images(
         image, depth_map, pop_out, max_disparity_percentage
@@ -598,6 +612,7 @@ def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
             "max_disparity_percentage": max_disparity_percentage,
             "width": int(image.shape[1]),
             "height": int(image.shape[0]),
+            "export_limit": export_limit,
         }, handle)
     return paths
 

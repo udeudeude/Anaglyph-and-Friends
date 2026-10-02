@@ -72,6 +72,10 @@
 .downloadPanel { margin-top:12px; border:1px solid #203650; border-radius:12px; background:#091727; padding:14px 18px; }
 .downloadHeading { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; }.downloadHeading>div { display:flex; flex-direction:column; gap:4px; }.downloadHeading strong { font-size:12px; }.downloadHeading span { color:#8b9fb4; font-size:12px; line-height:1.4; }
 .fullResBadge { flex:none; border:1px solid #315a8e; border-radius:999px; padding:4px 7px; color:#7fafef!important; font-size:12px!important; font-weight:800; letter-spacing:.1em; }
+.finalDownloadError,.preparedDownload { margin:10px 0 0; padding:10px 12px; border-radius:8px; font-size:13px; line-height:1.5; }
+.finalDownloadError { border:1px solid #9e5261; background:#301c27; color:#ffd3d9; }
+.preparedDownload { border:1px solid #47779e; background:#102a43; color:#e2efff; }
+.preparedDownload a { color:#9ed0ff; font-weight:800; }
 .downloadControls { display:flex; align-items:flex-end; gap:18px; margin-top:12px; }.downloadControls label { display:flex; flex-direction:column; gap:5px; color:#8a9fb7; font-size:12px; font-weight:700; }.downloadControls select { min-width:92px; border:1px solid #2b425f; border-radius:7px; padding:7px 9px; color:#b5c8df; background:#0d1b2d; }.downloadControls label:has(input[type=range]) { display:grid; grid-template-columns:auto minmax(100px,180px) 24px; align-items:center; gap:8px; }.downloadControls input[type=range] { margin:0; accent-color:#4b8df8; }.downloadControls label strong { color:#79a0d2; font-size:12px; }.eyeDownloads { margin-left:auto; display:flex; gap:7px; }.eyeDownloads button { border:1px solid #2b425f; border-radius:7px; padding:8px 11px; background:#0d1b2d; color:#9bb1cc; font-size:12px; font-weight:700; }
 .fixedFormat { display:flex; flex-direction:column; gap:4px; color:#8a9fb7; font-size:12px; }.fixedFormat strong { color:#a8bdd5; font-size:12px; }
 @keyframes spin { to { transform:rotate(360deg); } }

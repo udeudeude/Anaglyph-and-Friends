@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import "./styles/AnaglyphEditor.css";
 import TechniqueControls from './TechniqueControls';
 import UiIcon from './UiIcon';
+import { hostedBrowserDepthEnabled } from './browserDepth';
 import type { PrintPageIncomingArtwork } from './printPageAssets';
 import {
     mergeStoredSettings,
@@ -68,6 +69,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [outputsAreLoading, setOutputsAreLoading] = useState(false);
     const [fullPreparing, setFullPreparing] = useState(false);
+    const [downloadError, setDownloadError] = useState('');
+    const [preparedDownload, setPreparedDownload] = useState<{ url: string; filename: string } | null>(null);
     const [hasRendered, setHasRendered] = useState(false);
     const [popOut, setPopOut] = useState(() => localStorage.getItem('aaf-pop-out') === 'true');
     const [swapEyes, setSwapEyes] = useState(() => localStorage.getItem('aaf-swap-eyes') === 'true');
@@ -79,6 +82,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const [jpegQuality, setJpegQuality] = useState(() => readNumber('aaf-jpeg-quality', 95));
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({x: 0, y: 0});
+    const hostedEdition = hostedBrowserDepthEnabled();
+    useEffect(() => () => { if (preparedDownload) URL.revokeObjectURL(preparedDownload.url); }, [preparedDownload]);
 
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings);
     const renderParams = () => `pop_out=${popOut}&max_disparity_percentage=${appliedStrength}`;
@@ -239,13 +244,13 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const triggerBlobDownload = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);
+        setPreparedDownload({ url, filename });
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
         link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     const currentFilename = () => {
@@ -288,6 +293,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const downloadCurrent = async () => {
         if (!isDepthMapReady || fullPreparing) return;
+        setDownloadError('');
+        setPreparedDownload(null);
         setFullPreparing(true);
         setIsChangeAllowed(false);
         setProcessingStage('full');
@@ -296,6 +303,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             setProcessingStage('ready');
         } catch (error) {
             console.error('Failed to create final download', error);
+            setDownloadError(error instanceof Error ? `Download failed: ${error.message}. Please retry.` : 'Download failed. Please retry.');
             setProcessingStage('error');
         } finally {
             setFullPreparing(false);
@@ -356,6 +364,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const downloadEye = async (kind: 'left' | 'right') => {
         if (!isDepthMapReady || fullPreparing) return;
+        setDownloadError('');
+        setPreparedDownload(null);
         setFullPreparing(true);
         setProcessingStage('full');
         try {
@@ -371,6 +381,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             setProcessingStage('ready');
         } catch (error) {
             console.error(error);
+            setDownloadError(error instanceof Error ? `Eye download failed: ${error.message}. Please retry.` : 'Eye download failed. Please retry.');
             setProcessingStage('error');
         } finally {
             setFullPreparing(false);
@@ -502,13 +513,15 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     <button className="downloadAction" onClick={() => void downloadCurrent()} disabled={!previewUrl || fullPreparing}>{fullPreparing ? <><span className="buttonLoader" /> Preparing…</> : <><UiIcon name="download" /> Download <kbd>⌘S</kbd></>}</button>
                 </div>
             </div>
+            {downloadError && <p className="finalDownloadError" role="alert">{downloadError}</p>}
+            {preparedDownload && <p className="preparedDownload">File prepared. If it did not save automatically, <a href={preparedDownload.url} download={preparedDownload.filename} target="_blank" rel="noopener noreferrer">open or save {preparedDownload.filename}</a>{hostedEdition ? ' (on iPhone, use Share → Save to Files if it opens).' : '.'}</p>}
 
             {genericSettings()}
 
             {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
 
             <div className="downloadPanel">
-                <div className="downloadHeading"><div><strong>Final output</strong><span>{activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'Animated GIFs are exported at a playback-optimized raster size so the saved file can maintain its requested speed.' : 'Static techniques render from the full-resolution source. Print-specific formats use their selected physical dimensions and DPI.'}</span></div><span className="fullResBadge">FULL QUALITY</span></div>
+                <div className="downloadHeading"><div><strong>Final output</strong><span>{activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'Animated GIFs are exported at a playback-optimized raster size so the saved file can maintain its requested speed.' : hostedEdition ? 'Hosted exports use an image up to 1800 pixels on its longest side to fit the free service. Print-specific formats use their selected physical dimensions and DPI.' : 'Static techniques render from the full-resolution source. Print-specific formats use their selected physical dimensions and DPI.'}</span></div><span className="fullResBadge">{hostedEdition ? 'HOSTED SIZE' : 'FULL QUALITY'}</span></div>
                 <div className="downloadControls">
                     {fixedFormat ? <div className="fixedFormat"><span>Format</span><strong>{fixedFormat}</strong></div> : <label>Format<select value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png')}><option value="jpeg">JPEG</option><option value="png">PNG</option></select></label>}
                     {!fixedFormat && downloadFormat === 'jpeg' && <label>JPEG quality<input type="range" min="70" max="100" step="1" value={jpegQuality} onChange={(e) => setJpegQuality(parseInt(e.target.value))} /><strong>{jpegQuality}</strong></label>}
