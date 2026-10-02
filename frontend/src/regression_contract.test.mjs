@@ -15,6 +15,9 @@ const required=[
 required.push(
  [app,'studioSurface === \'transparency\'','Layered Transparency routing'],
  [editor,'__transparency__','Layered Transparency Print menu entry'],
+ [editor,'role="alert"','visible final download failure'],
+ [editor,'open or save {preparedDownload.filename}','manual iPhone download fallback'],
+ [editor,'1800 pixels on its longest side','honest hosted export size'],
  [read('./LayeredTransparencyBuilder.tsx'),'kind=npy','active full-resolution depth map used for transparent sheets'],
  [read('./LayeredTransparencyBuilder.tsx'),'Download white backing cut guides','matching white paper masks'],
  [read('./LayeredTransparencyBuilder.tsx'),'Explanation &amp; assembly instructions','progressive instruction disclosure'],

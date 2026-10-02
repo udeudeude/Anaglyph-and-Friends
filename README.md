@@ -225,7 +225,7 @@ A useful prompt is:
 
 The two editions deliberately split the expensive depth-estimation step differently:
 
-- **Hosted web edition:** Depth Anything V2 runs in the browser (WebGPU where available, otherwise browser CPU). This avoids trying to fit PyTorch and the model into Render's small free server. The generated depth map is then sent to the backend for the established stereo and print pipeline. The first successful use may need to download the browser AI library/model. If that stage fails, the interface now distinguishes download/startup/inference failures, keeps the source image loaded, and provides **Retry AI depth** without making the user choose the image again.
+- **Hosted web edition:** Depth Anything V2 runs in the browser (WebGPU where available, otherwise browser CPU). This avoids trying to fit PyTorch and the model into Render's small free server. The generated depth map is then sent to the backend for the established stereo and print pipeline. Hosted final renders use at most 1800 pixels along the source image's longest side to keep ordinary downloads within the free service's memory; the local edition retains full-resolution exports. The first successful use may need to download the browser AI library/model. If that stage fails, the interface now distinguishes download/startup/inference failures, keeps the source image loaded, and provides **Retry AI depth** without making the user choose the image again.
 - **Local edition:** the Python backend runs Depth Anything V2 directly with PyTorch. This remains the better route for offline use and for machines where browser inference is undesirable.
 
 The optional **AI depth generator** control is tucked away in Studio and View-Master. Automatic (recommended) uses Depth Anything V2 Small in both editions. The hosted browser edition also offers Depth Anything V3 Small as an explicit choice; its first use downloads about 105 MB of model files and may require a capable browser/device. In Studio, changing to a different model reruns depth for the loaded image when its AI map has not been edited. A manual generation button appears when the selected model differs from the current AI map or when an imported/edited map needs explicit replacement; it is hidden for an unchanged AI map. The local edition continues to use V2. See [depth generator research and adapter contract](docs/DEPTH_GENERATORS.md).
@@ -381,7 +381,7 @@ The local frontend is a dark desktop-style workspace with:
 - independent on-screen preview sizing;
 - zoom and pan for preview inspection;
 - fullscreen viewing on black with technique controls available near the bottom edge;
-- full-quality downloads;
+- full-resolution local downloads and memory-bounded hosted downloads;
 - individual left/right-eye downloads for stereo-based techniques;
 - downloadable 16-bit and raw float32 depth maps;
 - browser-local persistence for rendering, viewer, and print settings.
@@ -418,7 +418,7 @@ The pipeline now separates interactive previews from final rendering:
 2. Estimate and retain a normalized source-size depth map.
 3. Build smaller interactive products when a technique permits it.
 4. Cache the ordinary left/right stereo pair for reuse by Red/Cyan, Parallel, Cross-Eyed, Cardboard, stereoscope, and eye-view exports.
-5. Create final static downloads from the full-resolution source or, for physical print techniques, from the requested print dimensions and DPI.
+5. Create final static downloads from the source. The hosted edition limits the rendered source to 1800 pixels on its longest side; the local edition retains the full resolution. Physical print techniques still use their requested output dimensions and DPI, subject to their own resource limits.
 
 Special formats such as wiggle-grams, autostereograms, ChromaDepth, lenticular interlacing, phantograms, and layered 3D compositing reuse the same source/depth foundation but have their own rendering modules. The layered compositor first generates the ordinary base stereo pair, then synthesizes the imported foreground independently for each eye before combining the result.
 
@@ -499,7 +499,7 @@ Core:
 - `GET /depth-map/download?kind=gray16|npy|color` - depth-map exports.
 - `POST /depth-map/edit` - float32 brush, levels/gamma/blur, and reset operations.
 - `GET /render` - build/cache the interactive ordinary stereo pair.
-- `GET /prepare-full` - build/cache a full-resolution ordinary stereo pair.
+- `GET /prepare-full` - build/cache an ordinary stereo pair at source resolution locally or at most 1800 source pixels on the hosted edition.
 - `GET /output/<kind>` - `anaglyph`, `parallel`, `cross`, `left`, or `right`.
 
 Technique renderers:
