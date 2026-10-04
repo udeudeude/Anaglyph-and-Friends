@@ -374,6 +374,7 @@ The local frontend is a dark desktop-style workspace with:
 - drag-and-drop, file-picker, and clipboard-paste image loading;
 - full-resolution source retention;
 - source and depth-map inspection views;
+- visible processing-stage bars on desktop and phone; they animate while work is underway because upload, depth inference, and rendering do not expose a reliable overall completion percentage;
 - a resizable/collapsible source sidebar;
 - fast Red/Cyan, Parallel, and Cross-Eyed controls plus a grouped **More techniques** selector;
 - technique-specific configuration panels that appear only when relevant;

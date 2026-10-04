@@ -14,6 +14,8 @@ const required=[
 ];
 required.push(
  [app,'studioSurface === \'transparency\'','Layered Transparency routing'],
+ [app,'role="progressbar"','processing stages show a progress bar'],
+ [read('./styles/App.css'),'.topBarActions:not(.statusActive) { display:none; }','active processing remains visible on narrow screens'],
  [editor,'__transparency__','Layered Transparency Print menu entry'],
  [editor,'role="alert"','visible final download failure'],
  [editor,'open or save {preparedDownload.filename}','manual iPhone download fallback'],
