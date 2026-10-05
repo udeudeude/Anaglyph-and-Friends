@@ -8,6 +8,7 @@ import secrets
 import sys
 import tempfile
 import threading
+import time
 import traceback
 import urllib.request
 import webbrowser
@@ -110,13 +111,16 @@ def main():
     configure_runtime()
     root = tk.Tk()
     root.title("Anaglyph & Friends")
-    root.geometry("480x230")
+    root.geometry("480x270")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=24)
     frame.pack(fill="both", expand=True)
     ttk.Label(frame, text="Anaglyph & Friends", font=("Helvetica", 21, "bold")).pack(anchor="w")
     status = tk.StringVar(value="Starting your local workspace…")
     ttk.Label(frame, textvariable=status, wraplength=430).pack(anchor="w", pady=(12, 8))
+    progress = ttk.Progressbar(frame, mode="indeterminate")
+    progress.pack(fill="x", pady=(0, 12))
+    progress.start(15)
     ttk.Label(frame, text="Your images are processed on this Mac.\nKeep this window open while using the browser.").pack(anchor="w")
     events = queue.Queue()
     state = {"server": None, "origin": None, "closing": False}
@@ -136,7 +140,10 @@ def main():
 
     def start():
         try:
+            started = time.monotonic()
+            print("Desktop window open; loading local rendering runtime", flush=True)
             server, origin = create_server()
+            print(f"Local workspace ready after {time.monotonic() - started:.1f}s", flush=True)
             state["server"] = server
             if state["closing"]:
                 server.server_close()
@@ -151,6 +158,8 @@ def main():
     def poll():
         try:
             kind, detail = events.get_nowait()
+            progress.stop()
+            progress.pack_forget()
             if kind == "ready":
                 state["origin"] = detail
                 status.set("Ready — the workspace opens in your browser.")
@@ -170,7 +179,10 @@ def main():
     threading.Thread(target=start, daemon=True).start()
     root.after(150, poll)
     if ui_test:
-        root.after(30000, stop)
+        def timed_out():
+            print("Native-window test timed out before server readiness (180 seconds)", flush=True)
+            stop()
+        root.after(180000, timed_out)
     root.mainloop()
     if ui_test and state["origin"] is None:
         sys.exit(1)
