@@ -9,6 +9,9 @@ import desktop
 
 
 class DesktopRuntimeTests(unittest.TestCase):
+    def test_stable_origin_for_saved_browser_profiles(self):
+        self.assertEqual(desktop.DESKTOP_PORT, 8765)
+
     def test_writable_state_and_explicit_frozen_resources(self):
         with tempfile.TemporaryDirectory(prefix="aaf-path-test-") as directory:
             with patch.dict(os.environ, {}, clear=True), patch.object(desktop.sys, "_MEIPASS", "/read-only/app/Frameworks", create=True):

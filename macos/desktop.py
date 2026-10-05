@@ -13,6 +13,10 @@ import traceback
 import urllib.request
 import webbrowser
 
+# A stable origin keeps browser-saved printer/filter/viewer profiles available
+# across launches and updates. Never silently switch ports on a conflict.
+DESKTOP_PORT = 8765
+
 
 def configure_runtime(data_dir=None):
     bundle = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
@@ -36,7 +40,7 @@ def create_server():
     from production import app
     from werkzeug.serving import make_server
 
-    server = make_server("127.0.0.1", 0, app, threaded=True)
+    server = make_server("127.0.0.1", DESKTOP_PORT, app, threaded=True)
     origin = f"http://127.0.0.1:{server.server_port}"
 
     @app.before_request
@@ -151,9 +155,9 @@ def main():
             events.put(("ready", origin))
             server.serve_forever()
             server.server_close()
-        except Exception:
+        except (Exception, SystemExit):
             traceback.print_exc()
-            events.put(("error", "Could not start. Details are in ~/Library/Logs/Anaglyph-and-Friends/desktop.log"))
+            events.put(("error", "Could not start. Close any other copy of this app. Port 8765 must be free. Details: ~/Library/Logs/Anaglyph-and-Friends/desktop.log"))
 
     def poll():
         try:
