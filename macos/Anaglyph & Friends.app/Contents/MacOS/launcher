@@ -6,57 +6,84 @@ LOG_DIR="$HOME/Library/Logs/Anaglyph-and-Friends"
 PID_DIR="$HOME/Library/Application Support/Anaglyph-and-Friends"
 BACKEND_PY="$ROOT/backend/.venv/bin/python"
 FRONTEND_DIR="$ROOT/frontend"
+VITE="$FRONTEND_DIR/node_modules/vite/bin/vite.js"
+BACKEND_MARKER="$ROOT/backend/app.py"
 
-mkdir -p "$LOG_DIR" "$PID_DIR"
+# Finder does not load the user's interactive shell configuration.
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/current/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+source "$ROOT/macos/launcher-processes.sh"
+mkdir -p "$LOG_DIR" "$PID_DIR"
 
 show_error() {
   /usr/bin/osascript -e "display dialog \"$1\" buttons {\"OK\"} default button 1 with icon stop"
 }
 
-if [ ! -x "$BACKEND_PY" ]; then
-  show_error "The local Python environment is not installed yet. Complete the README local setup once, then this app can start Anaglyph & Friends without Terminal."
-  exit 1
-fi
-
-if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
-  show_error "The frontend dependencies are not installed yet. Run npm install in the frontend folder once, then try again."
-  exit 1
-fi
-
-NPM="$(command -v npm || true)"
-if [ -z "$NPM" ]; then
-  show_error "npm could not be found. Install Node.js or make sure npm is available in /usr/local/bin or /opt/homebrew/bin."
-  exit 1
-fi
-
-alive() {
-  [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
+backend_ready() {
+  [ "$(/usr/bin/curl --fail --silent --max-time 2 http://127.0.0.1:8000/healthz 2>/dev/null)" = "ok" ] &&
+    [ "$(/usr/bin/curl --fail --silent --max-time 2 http://127.0.0.1:8000/ 2>/dev/null)" = "Anaglyph & Friends backend" ]
 }
 
-if ! alive "$PID_DIR/backend.pid"; then
+frontend_ready() {
+  /usr/bin/curl --fail --silent --max-time 2 http://127.0.0.1:5173/ 2>/dev/null | /usr/bin/grep -Fq '<title>Anaglyph & Friends'
+}
+
+find_node() {
+  local candidate major best_major=0
+  NODE=""
+  for candidate in "$(command -v node || true)" "$HOME"/.nvm/versions/node/*/bin/node; do
+    [ -x "$candidate" ] || continue
+    major="$("$candidate" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null)"
+    case "$major" in ''|*[!0-9]*) continue ;; esac
+    if [ "$major" -gt "$best_major" ]; then NODE="$candidate"; best_major="$major"; fi
+  done
+  [ "$best_major" -ge 20 ]
+}
+
+STARTED_BACKEND=0
+STARTED_FRONTEND=0
+fail_start() {
+  [ "$STARTED_FRONTEND" -eq 0 ] || stop_managed_pid "$PID_DIR/frontend.pid" "$VITE"
+  [ "$STARTED_BACKEND" -eq 0 ] || stop_managed_pid "$PID_DIR/backend.pid" "$BACKEND_MARKER"
+  show_error "Anaglyph & Friends could not start: $1. Check the logs in ~/Library/Logs/Anaglyph-and-Friends."
+  exit 1
+}
+
+if ! backend_ready && ! managed_pid "$PID_DIR/backend.pid" "$BACKEND_MARKER" >/dev/null; then
+  if [ ! -x "$BACKEND_PY" ]; then
+    show_error "The local Python environment is missing. Complete the one-time setup in the README first."
+    exit 1
+  fi
   (
     cd "$ROOT/backend" || exit 1
-    nohup "$BACKEND_PY" app.py >> "$LOG_DIR/backend.log" 2>&1 &
+    nohup "$BACKEND_PY" "$BACKEND_MARKER" >> "$LOG_DIR/backend.log" 2>&1 &
     echo $! > "$PID_DIR/backend.pid"
   )
+  STARTED_BACKEND=1
 fi
 
-if ! alive "$PID_DIR/frontend.pid"; then
+if ! frontend_ready && ! managed_pid "$PID_DIR/frontend.pid" "$VITE" >/dev/null; then
+  if [ ! -f "$VITE" ]; then fail_start "frontend dependencies are missing; run npm install in the frontend folder once"; fi
+  if ! find_node; then fail_start "Node.js 20 or newer was not found (including in ~/.nvm/versions/node)"; fi
   (
     cd "$FRONTEND_DIR" || exit 1
-    nohup "$NPM" run dev -- --host 127.0.0.1 >> "$LOG_DIR/frontend.log" 2>&1 &
+    nohup "$NODE" "$VITE" --host 127.0.0.1 --port 5173 --strictPort >> "$LOG_DIR/frontend.log" 2>&1 &
     echo $! > "$PID_DIR/frontend.pid"
   )
+  STARTED_FRONTEND=1
 fi
 
-for attempt in $(seq 1 60); do
-  if /usr/bin/curl --fail --silent http://127.0.0.1:5173/ >/dev/null 2>&1; then
+for attempt in {1..60}; do
+  if backend_ready && frontend_ready; then
     /usr/bin/open http://127.0.0.1:5173/
     exit 0
+  fi
+  if [ "$STARTED_BACKEND" -eq 1 ] && ! managed_pid "$PID_DIR/backend.pid" "$BACKEND_MARKER" >/dev/null; then
+    fail_start "the Python backend quit before it was ready, or port 8000 is occupied"
+  fi
+  if [ "$STARTED_FRONTEND" -eq 1 ] && ! managed_pid "$PID_DIR/frontend.pid" "$VITE" >/dev/null; then
+    fail_start "the web interface quit before it was ready, or port 5173 is occupied"
   fi
   sleep 1
 done
 
-show_error "Anaglyph & Friends did not finish starting. Check ~/Library/Logs/Anaglyph-and-Friends/backend.log and frontend.log."
-exit 1
+fail_start "the Python backend and web interface did not both become ready within 60 seconds"
