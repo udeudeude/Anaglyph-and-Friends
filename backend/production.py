@@ -12,9 +12,10 @@ from flask import send_from_directory
 from app import app
 
 
-FRONTEND_DIST = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-)
+FRONTEND_DIST = os.path.abspath(os.getenv(
+    "AAF_FRONTEND_DIST",
+    os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"),
+))
 
 
 def serve_index():

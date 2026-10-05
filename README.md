@@ -19,7 +19,17 @@ The original Anaglyph AI project and hosted demonstration were created by **Duy 
 
 ## New to GitHub? Start here
 
-You can use the **hosted web edition** without installing anything, or run the **local edition** on your own computer. The local edition needs one-time setup in Terminal; afterward, its Mac launcher starts both parts with a double-click.
+You can use the **hosted web edition** without installing anything, download the **standalone Mac edition**, or set up the **local developer edition** from source.
+
+### Download the Mac app — no Terminal setup
+
+The [Mac downloads](https://github.com/udeudeude/Anaglyph-and-Friends/releases/latest) include Python, the built interface and the local Depth Anything V2 Small model. Choose **Intel** or **Apple Silicon**, unzip, drag the app into Applications, then double-click it. Its small control window opens the workspace in your normal browser; keep it open while working and use **Quit** when finished. Images stay on your Mac and V2 works offline. No separate Python, Node or model installation is required.
+
+The first packages are **not Apple-notarized**. If blocked, follow [Apple's Open Anyway instructions](https://support.apple.com/102445), without disabling Gatekeeper globally. Cloud testing covers macOS 15 Intel and macOS 14 Apple Silicon; older versions and downloaded Finder/Gatekeeper behavior still need testing. This local package uses the established V2 model; the hosted edition continues to offer browser V2/V3. See [standalone release notes](macos/RELEASE-NOTES.md).
+
+### Developer installation from source
+
+The source edition below needs one-time setup in Terminal; afterward, its Mac launcher starts both parts with a double-click. The existing developer installation remains available and is not replaced by the packaged edition.
 
 The beginner guide below is for **macOS**, which is the environment this version has actually been tested on. Windows and Linux should use the same overall architecture, but some installation and virtual-environment commands differ.
 

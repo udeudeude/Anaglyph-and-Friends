@@ -74,7 +74,9 @@ class DepthMapGenerator:
             'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
         }
         self.model = DepthAnythingV2(**model_configs[encoder])
-        self.model.load_state_dict(torch.load(f'ai_models/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
+        checkpoint_dir = os.getenv("AAF_DEPTH_MODEL_DIR", "ai_models/checkpoints")
+        checkpoint = os.path.join(checkpoint_dir, f"depth_anything_v2_{encoder}.pth")
+        self.model.load_state_dict(torch.load(checkpoint, map_location='cpu', weights_only=True))
         self.model = self.model.to(self.device).eval()
         print(f"Loaded model on {self.device}")
 

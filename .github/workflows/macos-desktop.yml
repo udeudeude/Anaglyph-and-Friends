@@ -1,0 +1,105 @@
+name: Mac Desktop
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+    paths: ['macos/**', 'backend/**', 'frontend/**', '.github/workflows/macos-desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            architecture: intel
+          - runner: macos-14
+            architecture: apple-silicon
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build the unchanged local frontend
+        working-directory: frontend
+        env:
+          VITE_FLASK_BACKEND_API_URL: '.'
+        run: |
+          npm ci
+          node src/regression_contract.test.mjs
+          for test in src/*.test.mjs; do node --experimental-strip-types "$test"; done
+          npm run lint
+          npm run build
+      - name: Install local desktop dependencies
+        run: python -m pip install -r macos/requirements-desktop.txt
+      - name: Regression tests
+        run: |
+          python macos/test_desktop.py
+          bash macos/test_launcher_processes.sh
+          python backend/test_technique_generator.py
+          python backend/test_phantogram_generator.py
+          python backend/test_depth_regenerate.py
+      - name: Get pinned V2 Small code and verified weights
+        run: |
+          mkdir -p backend/ai_models/checkpoints
+          git clone https://github.com/DepthAnything/Depth-Anything-V2.git backend/ai_models/Depth_Anything_V2
+          git -C backend/ai_models/Depth_Anything_V2 checkout a561b849ebae10a6f5ef49e26c83cbbcd36c71bf
+          curl --fail --location --retry 3 'https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/05bbaec5306c04f1fa00a8c376c7dcf4153e7fe8/depth_anything_v2_vits.pth' -o backend/ai_models/checkpoints/depth_anything_v2_vits.pth
+          echo '715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378  backend/ai_models/checkpoints/depth_anything_v2_vits.pth' | shasum -a 256 -c -
+      - name: Freeze app with Python, local V2 and frontend
+        run: |
+          python macos/collect_licenses.py
+          python -m PyInstaller --noconfirm macos/desktop.spec
+          codesign --verify --deep --strict 'dist/Anaglyph & Friends.app'
+      - name: Run the actual frozen application before packaging
+        run: '"dist/Anaglyph & Friends.app/Contents/MacOS/Anaglyph & Friends" --smoke-test'
+      - name: Package checked app
+        run: |
+          cp macos/DOWNLOAD-README.txt dist/READ-ME-FIRST.txt
+          mkdir -p 'build/download/Anaglyph & Friends'
+          ditto 'dist/Anaglyph & Friends.app' 'build/download/Anaglyph & Friends/Anaglyph & Friends.app'
+          cp macos/DOWNLOAD-README.txt 'build/download/Anaglyph & Friends/READ-ME-FIRST.txt'
+          ditto -c -k --sequesterRsrc --keepParent 'build/download/Anaglyph & Friends' 'dist/Anaglyph-and-Friends-${{ matrix.architecture }}.zip'
+          cd dist
+          shasum -a 256 Anaglyph-and-Friends-${{ matrix.architecture }}.zip > Anaglyph-and-Friends-${{ matrix.architecture }}.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.architecture }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/READ-ME-FIRST.txt
+          retention-days: 14
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mac-*
+          merge-multiple: true
+          path: release-files
+      - name: Publish checked versioned download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="mac-${GITHUB_SHA:0:12}"
+          gh release create "$tag" --target "$GITHUB_SHA" --latest --title 'Anaglyph & Friends — standalone Mac edition' --notes-file macos/RELEASE-NOTES.md release-files/*
