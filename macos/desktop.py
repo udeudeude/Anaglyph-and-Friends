@@ -101,6 +101,8 @@ def main():
     import tkinter as tk
     from tkinter import ttk
 
+    ui_test = "--ui-smoke-test" in sys.argv
+
     log_dir = Path.home() / "Library/Logs/Anaglyph-and-Friends"
     log_dir.mkdir(parents=True, exist_ok=True)
     log = open(log_dir / "desktop.log", "a", buffering=1)
@@ -153,16 +155,25 @@ def main():
                 state["origin"] = detail
                 status.set("Ready — the workspace opens in your browser.")
                 open_button.configure(state="normal")
-                webbrowser.open(detail)
+                if ui_test:
+                    root.after(500, stop)
+                else:
+                    webbrowser.open(detail)
             else:
                 status.set(detail)
+                if ui_test:
+                    root.after(500, stop)
         except queue.Empty:
             pass
         root.after(150, poll)
 
     threading.Thread(target=start, daemon=True).start()
     root.after(150, poll)
+    if ui_test:
+        root.after(30000, stop)
     root.mainloop()
+    if ui_test and state["origin"] is None:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

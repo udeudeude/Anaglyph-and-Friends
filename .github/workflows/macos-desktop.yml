@@ -65,7 +65,12 @@ jobs:
           python -m PyInstaller --noconfirm macos/desktop.spec
           codesign --verify --deep --strict 'dist/Anaglyph & Friends.app'
       - name: Run the actual frozen application before packaging
-        run: '"dist/Anaglyph & Friends.app/Contents/MacOS/Anaglyph & Friends" --smoke-test'
+        run: |
+          "dist/Anaglyph & Friends.app/Contents/MacOS/Anaglyph & Friends" --smoke-test
+          "dist/Anaglyph & Friends.app/Contents/MacOS/Anaglyph & Friends" --ui-smoke-test
+      - name: Show desktop logs on failure
+        if: failure()
+        run: cat "$HOME/Library/Logs/Anaglyph-and-Friends/desktop.log" || true
       - name: Package checked app
         run: |
           cp macos/DOWNLOAD-README.txt dist/READ-ME-FIRST.txt
