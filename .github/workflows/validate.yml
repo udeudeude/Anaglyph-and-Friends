@@ -47,6 +47,8 @@ jobs:
           test -x "macos/Stop Anaglyph & Friends.app/Contents/MacOS/launcher"
           bash -n "macos/Anaglyph & Friends.app/Contents/MacOS/launcher"
           bash -n "macos/Stop Anaglyph & Friends.app/Contents/MacOS/launcher"
+          bash -n macos/launcher-processes.sh macos/test_launcher_processes.sh
+          bash macos/test_launcher_processes.sh
           grep -q '<string>APPL</string>' "macos/Anaglyph & Friends.app/Contents/Info.plist"
       - name: Verify hosted build stays lightweight
         run: |

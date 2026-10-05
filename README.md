@@ -19,7 +19,7 @@ The original Anaglyph AI project and hosted demonstration were created by **Duy 
 
 ## New to GitHub? Start here
 
-You can use the **hosted web edition** without installing anything, or run the **local edition** on your own computer. The local edition is not yet a normal double-clickable Mac app, so its first setup uses Terminal.
+You can use the **hosted web edition** without installing anything, or run the **local edition** on your own computer. The local edition needs one-time setup in Terminal; afterward, its Mac launcher starts both parts with a double-click.
 
 The beginner guide below is for **macOS**, which is the environment this version has actually been tested on. Windows and Linux should use the same overall architecture, but some installation and virtual-environment commands differ.
 
@@ -30,7 +30,7 @@ There are four pieces:
 1. **GitHub** stores the project. `git clone` copies it onto your Mac.
 2. **Python / Flask** runs the backend that creates the depth map and 3D images.
 3. **Node / Vite** runs the frontend that you see in your web browser.
-4. The backend and frontend each stay running in their own Terminal window while you use the app.
+4. The Mac launcher starts both parts, waits for them to be ready, and opens the browser. A second launcher stops them.
 
 Everything runs on your own computer. After the software and AI model have been downloaded once, image processing can work offline.
 
@@ -92,7 +92,7 @@ backend/ai_models/Depth_Anything_V2/depth_anything_v2/...
 backend/ai_models/checkpoints/depth_anything_v2_vits.pth
 ```
 
-### 4. Set up and start the backend
+### 4. Install the backend
 
 This part only needs to be **installed once**. In Terminal:
 
@@ -102,56 +102,38 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-python app.py
 ```
 
 The first dependency installation can take several minutes.
 
-When the virtual environment is active, your Terminal prompt will usually begin with `(.venv)`. That is expected.
-
-When the backend is ready, you should eventually see a line similar to:
-
-```text
-* Running on http://127.0.0.1:8000
-```
-
-Leave this Terminal window open and running. Messages such as `xFormers not available` can be informational and do not by themselves mean the backend failed.
+When the virtual environment is active, your Terminal prompt will usually begin with `(.venv)`. That is expected. Once installation finishes, the launcher will start the backend for you.
 
 #### Intel Mac note
 
 Some Intel Macs expose PyTorch's MPS GPU support but do not implement every operation used by Depth Anything V2. Anaglyph & Friends enables PyTorch's **CPU fallback** for unsupported MPS operations while keeping supported work on MPS. This preserves the aspect ratio of the source image without requiring the whole model to run on CPU.
 
-If MPS causes trouble on a particular Mac, you can force the backend to use only the CPU:
+If MPS causes trouble on a particular Mac, you can force the backend to use only the CPU when starting it manually from the `backend` folder with the virtual environment active:
 
 ```bash
 AAF_TORCH_DEVICE=cpu python app.py
 ```
 
-### 5. Set up and start the frontend
+### 5. Install the frontend
 
-Open a **second Terminal window**. Leave the backend running in the first one.
-
-In the new Terminal:
+In the same Terminal window:
 
 ```bash
 cd ~/Desktop/Anaglyph-and-Friends/frontend
 npm install
-npm run dev
 ```
 
-When Vite is ready, it normally shows:
-
-```text
-http://localhost:5173
-```
-
-Leave this second Terminal running too.
+The installation only needs to be done once. You can close Terminal afterward.
 
 ### 6. Open the app
 
-Open your web browser and go to:
+In Finder, open the repository's `macos` folder and double-click **Anaglyph & Friends.app**. It starts both local services, checks that both are ready, and opens [http://127.0.0.1:5173](http://127.0.0.1:5173) in your browser. Double-click **Stop Anaglyph & Friends.app** when you finish.
 
-[http://localhost:5173](http://localhost:5173)
+Keep the app bundles in the repository's `macos` folder; Finder aliases can be placed elsewhere. Because these small launchers are not notarized, macOS may require **Control-click → Open** the first time. If startup fails, the launcher shows an error; details are in `~/Library/Logs/Anaglyph-and-Friends/`.
 
 You should now see **Anaglyph & Friends**. Drop, choose, or paste an image into the source panel and the app will create its depth map and selected 3D output.
 
@@ -159,14 +141,9 @@ You should now see **Anaglyph & Friends**. Drop, choose, or paste an image into 
 
 You do **not** repeat the installation steps every time.
 
-On macOS, after the one-time setup above is complete, you can use the small launchers in the repository's `macos` folder:
+Double-click **Anaglyph & Friends.app** again. It reuses healthy services and opens the browser. **Stop Anaglyph & Friends.app** stops only processes started by these launchers; it leaves manually started services alone. The launchers use your installed Python, Node, model files, and dependencies rather than bundling them.
 
-- double-click **Anaglyph & Friends.app** to start both local servers and open the browser;
-- double-click **Stop Anaglyph & Friends.app** when you are finished.
-
-They use your existing local Python environment, Node installation, model files, and dependencies. They are deliberately small launchers rather than a self-contained signed distribution. Because they are not notarized, macOS may require **Control-click -> Open** the first time.
-
-You can still start the components manually. Open one Terminal window for the backend:
+For troubleshooting or development, you can still start the components manually. Open one Terminal window for the backend:
 
 ```bash
 cd ~/Desktop/Anaglyph-and-Friends/backend
