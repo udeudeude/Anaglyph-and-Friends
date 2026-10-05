@@ -1,0 +1,11 @@
+# Standalone LOCAL edition only. Never install this in the hosted Docker image.
+Flask==3.1.0
+Flask-Cors==5.0.0
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+pillow==11.0.0
+python-dotenv==1.0.1
+Werkzeug==3.1.3
+torch==2.2.2
+torchvision==0.17.2
+pyinstaller==6.16.0

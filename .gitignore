@@ -7,3 +7,6 @@ random_images_depth_maps_coloured/
 random_images_depth_maps_greyscale/
 azure_linux_vm.pem
 unsplash-dataset/
+__pycache__/
+build/
+dist/
