@@ -404,7 +404,7 @@ function TechniqueControls({ technique, settings, setSettings, onApply, dirty, d
                 <div><strong>Viewing setup</strong><span>Use a neutral-density / dark filter over the selected eye and keep your head level. Nearer regions sweep toward the darkened eye while farther regions move the other way around the screen-depth plane.</span></div>
                 <strong className="printWarning">NOT AN ANAGLYPH FILTER. Use a gray/dark neutral-density filter over one eye only.</strong>
             </div>
-            <p className="techniqueHint">Current sweep: about {sweep} seconds, followed by a brief dark reset. The reset is intentional: reversing the sweep with the same eye darkened would reverse the perceived depth. Stronger motion can increase the effect but also increases edge distortion.</p>
+            <p className="techniqueHint">Current sweep: about {sweep} seconds, followed by a brief neutral reset. The reset is intentional: reversing the sweep with the same eye darkened would reverse the perceived depth. Stronger motion can increase the effect but also increases edge distortion.</p>
         </>;
     }
 
