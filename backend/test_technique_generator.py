@@ -117,6 +117,12 @@ def main():
     assert len(frames) == 8
     assert all(frame.shape == image.shape for frame in frames)
 
+    right_offsets = technique_generator.pulfrich_offsets(frame_count=12, dark_eye='right')
+    left_offsets = technique_generator.pulfrich_offsets(frame_count=12, dark_eye='left')
+    assert np.all(np.diff(right_offsets) > 0), 'right-eye Pulfrich sweep must move monotonically right'
+    assert np.all(np.diff(left_offsets) < 0), 'left-eye Pulfrich sweep must move monotonically left'
+    assert np.allclose(right_offsets, -left_offsets), 'darkened eye must reverse sweep polarity'
+
     pulfrich_right = technique_generator.pulfrich_frames(image, depth, frame_count=12, strength=2.0, dark_eye='right')
     pulfrich_left = technique_generator.pulfrich_frames(image, depth, frame_count=12, strength=2.0, dark_eye='left')
     assert len(pulfrich_right) == 12 and len(pulfrich_left) == 12

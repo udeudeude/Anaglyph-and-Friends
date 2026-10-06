@@ -121,7 +121,7 @@ export const techniqueInfo: Record<TechniqueId, {label: string; description: str
     stereoscope: { label: 'Traditional Stereoscope Card', description: 'Printable arched stereograph card with mount and text.', family: 'Viewers' },
     mirror: { label: 'Single-Mirror Stereoscope', description: 'Side-by-side stereo arranged around a center mirror gap, with one eye image horizontally reversed for reflection.', family: 'Viewers' },
     wiggle: { label: 'Wiggle-gram', description: 'Animated virtual viewpoints that reveal depth without glasses.', family: 'Animation' },
-    pulfrich: { label: 'Pulfrich Motion 3D', description: 'Depth-driven horizontal motion intended for viewing with a neutral-density filter over one eye.', family: 'Animation / filter' },
+    pulfrich: { label: 'Pulfrich Motion 3D', description: 'One-way depth-driven horizontal motion for viewing with a neutral-density filter over one eye.', family: 'Animation / filter' },
     randomdot: { label: 'Random-Dot Stereogram', description: 'Single-image autostereogram generated entirely from depth.', family: 'Autostereograms' },
     pattern: { label: 'Pattern Stereogram', description: 'Autostereogram using a repeating texture or your own pattern.', family: 'Autostereograms' },
     lenticular: { label: 'Lenticular 3D', description: 'Multi-view interlaced print matched to lenticular sheet and printer.', family: 'Print' },
