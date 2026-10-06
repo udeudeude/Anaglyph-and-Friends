@@ -21,6 +21,12 @@
 .previewFrame:fullscreen { width:100vw; height:100vh; max-height:none; border:0; border-radius:0; background:#000; }
 .previewFrame img { max-height:100%; object-fit:contain; transform-origin:center center; transition:max-width .12s ease, transform .08s ease; user-select:none; }
 .previewFrame.zoomed img { transition:none; }
+.previewFrame.pickingScreenDepth img { cursor:crosshair; }
+.screenDepthPrompt { position:absolute; top:12px; left:12px; right:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid #3c75c5; border-radius:8px; background:rgba(7,18,31,.94); color:#e2ecf8; font-size:13px; }
+.screenDepthPrompt button,.screenDepthSetting button { border:1px solid #355b83; border-radius:7px; padding:7px 9px; color:#c3d7ec; background:#112945; font-size:12px; }
+.screenDepthSetting small { display:block; margin:7px 0; color:#8d9fb3; font-size:12px; line-height:1.4; }
+.screenDepthSetting>div:last-child { display:flex; gap:7px; flex-wrap:wrap; }
+.repairLegend { margin:8px 2px; color:#ffbf69; font-size:12px; }
 .emptyStage { display:flex; flex-direction:column; align-items:center; gap:8px; color:#8b9fb6; }
 .emptyStage strong { color:#9cafc5; font-size:14px; }.emptyStage span { font-size:12px; }.stereoGlyph { font-size:27px; letter-spacing:8px; color:#345d8f; }
 .loadingVeil { position:absolute; inset:0; display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; color:#9eb4cf; font-size:12px; background:rgba(5,13,24,.78); backdrop-filter:blur(5px); z-index:10; }

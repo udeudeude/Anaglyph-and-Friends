@@ -50,6 +50,14 @@ jobs:
       - name: Verify frontend is served
         run: |
           curl --fail --silent http://127.0.0.1:8000/ | grep -q '<!doctype html>'
+      - name: Verify stereo plane and repair overlay in production
+        run: |
+          curl --fail --silent -b /tmp/aaf.cookies http://127.0.0.1:8000/stereo/source -o /tmp/aaf-original.png
+          file /tmp/aaf-original.png | grep -q 'PNG image data'
+          curl --fail --silent -b /tmp/aaf.cookies -H 'Content-Type: application/json' --data '{"x":0.5,"y":0.5}' http://127.0.0.1:8000/stereo/screen-depth | grep -q 'screen_depth'
+          curl --fail --silent -b /tmp/aaf.cookies 'http://127.0.0.1:8000/render?screen_depth=0.5' | grep -q 'subpixel-background-v1'
+          curl --fail --silent -b /tmp/aaf.cookies 'http://127.0.0.1:8000/output/anaglyph?screen_depth=0.5&repairs=true&format=png' -o /tmp/aaf-repairs.png
+          file /tmp/aaf-repairs.png | grep -q 'PNG image data'
       - name: Show container logs on failure
         if: failure()
         run: docker logs aaf-hosted || true

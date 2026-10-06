@@ -10,33 +10,17 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 class TechniqueGenerator:
     """Render presentation formats that sit on top of the shared source/depth pipeline."""
 
-    @staticmethod
-    def _fill_holes(image: np.ndarray) -> np.ndarray:
-        mask = np.all(image == -1, axis=-1).astype(np.uint8) * 255
-        return cv2.inpaint(image.astype(np.uint8), mask, 1, cv2.INPAINT_TELEA)
-
     def generate_view(
-        self,
-        image: np.ndarray,
-        depth_map: np.ndarray,
-        offset: float,
-        pop_out: bool = False,
-        strength: float = 2.0,
+        self, image: np.ndarray, depth_map: np.ndarray, offset: float,
+        pop_out: bool = False, strength: float = 2.0, screen_depth=None,
     ) -> np.ndarray:
-        """Synthesize one virtual viewpoint; offset -1..1 spans the stereo baseline."""
-        height, width = image.shape[:2]
-        depth = depth_map if pop_out else 1.0 - depth_map
-        max_shift = (strength / 100.0 * width) / 2.0
-        shifts = np.rint(offset * max_shift * depth).astype(np.int32)
-        cols = np.arange(width)
-        target_cols = np.clip(cols + shifts, 0, width - 1)
-        rows = np.arange(height).reshape(height, 1)
-        result = np.full_like(image, -1, dtype=np.int16)
-        if offset < 0:
-            result[rows, target_cols[:, ::-1]] = image[:, ::-1]
-        else:
-            result[rows, target_cols] = image
-        return self._fill_holes(result)
+        from stereo_renderer import render_view
+        plane = float(screen_depth) if screen_depth is not None else (0.0 if pop_out else 1.0)
+        # Retain the established motion/view ordering for these presentation formats.
+        displacement = offset * (strength / 100.0 * image.shape[1]) / 2.0
+        if not pop_out:
+            displacement = -displacement
+        return render_view(image, depth_map, displacement, plane)[0]
 
     @staticmethod
     def _fit_bgr(image: np.ndarray, width: int, height: int, background=(0, 0, 0)) -> np.ndarray:
@@ -407,10 +391,11 @@ class TechniqueGenerator:
         frame_count: int = 7,
         strength: float = 2.0,
         pop_out: bool = False,
+        screen_depth=None,
     ):
         frame_count = max(2, min(15, int(frame_count)))
         offsets = np.linspace(-1.0, 1.0, frame_count)
-        frames = [self.generate_view(image, depth, float(offset), pop_out, strength) for offset in offsets]
+        frames = [self.generate_view(image, depth, float(offset), pop_out, strength, screen_depth) for offset in offsets]
         if len(frames) > 2:
             frames = frames + frames[-2:0:-1]
         return frames
@@ -422,6 +407,7 @@ class TechniqueGenerator:
         frame_count: int = 12,
         strength: float = 2.0,
         dark_eye: str = "right",
+        screen_depth=None,
     ):
         """Create a smooth oscillating virtual-camera pan for Pulfrich viewing.
 
@@ -436,7 +422,7 @@ class TechniqueGenerator:
         phases = np.linspace(0.0, 2.0 * np.pi, frame_count, endpoint=False)
         offsets = direction * np.sin(phases)
         return [
-            self.generate_view(image, depth, float(offset), False, strength)
+            self.generate_view(image, depth, float(offset), False, strength, screen_depth)
             for offset in offsets
         ]
 
@@ -452,6 +438,7 @@ class TechniqueGenerator:
         slant_degrees: float = 0.0,
         strength: float = 2.0,
         pop_out: bool = False,
+        screen_depth=None,
     ) -> np.ndarray:
         output_width = max(300, min(10000, int(output_width)))
         output_height = max(200, min(10000, int(output_height)))
@@ -466,7 +453,7 @@ class TechniqueGenerator:
         view_index = np.minimum(views - 1, np.floor(phase * views).astype(np.int16))
         output = np.zeros_like(image)
         for index, offset in enumerate(np.linspace(-1.0, 1.0, views)):
-            view = self.generate_view(image, depth, float(offset), pop_out, strength)
+            view = self.generate_view(image, depth, float(offset), pop_out, strength, screen_depth)
             mask = view_index == index
             output[mask] = view[mask]
         return output

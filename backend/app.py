@@ -14,6 +14,7 @@ from technique_generator import technique_generator
 from phantogram_generator import calibration_ruler, fit_to_print, render_phantogram, warp_ground_plane_to_print
 from depth_sources import adjust_depth_map, align_depth, apply_depth_brush, apply_depth_selection, load_depth_upload
 from stereo_formats import compatibility_stereo, make_anaglyph
+from stereo_renderer import RENDERER_VERSION, sample_depth
 from dotenv import load_dotenv
 from werkzeug.utils import send_from_directory
 
@@ -94,6 +95,8 @@ def clear_stereo_cache():
     for suffix in (
         "preview_left.png", "preview_right.png", "preview_stereo.json",
         "full_left.png", "full_right.png", "full_stereo.json",
+        "preview_left_repair.png", "preview_right_repair.png",
+        "full_left_repair.png", "full_right_repair.png",
     ):
         try:
             os.remove(session_path(suffix))
@@ -116,8 +119,41 @@ def clear_old_session_files():
 def parse_render_parameters():
     pop_out = request.args.get("pop_out", default="false").lower() == "true"
     max_disparity_percentage = float(request.args.get("max_disparity_percentage", default=2))
+    if not np.isfinite(max_disparity_percentage):
+        raise ValueError("3D strength must be finite")
     max_disparity_percentage = max(0.0, min(6.0, max_disparity_percentage))
     return pop_out, max_disparity_percentage
+
+
+def parse_screen_depth():
+    raw = request.args.get("screen_depth")
+    if raw is None or raw == "":
+        return None
+    value = float(raw)
+    if not np.isfinite(value) or not 0 <= value <= 1:
+        raise ValueError("Screen depth must be between 0 and 1")
+    return value
+
+
+@app.route("/stereo/source", methods=["GET"])
+def stereo_source():
+    try:
+        image, _ = source_and_depth("preview")
+        return send_cv_image(image, "screen-depth-source", "png")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/stereo/screen-depth", methods=["POST"])
+def choose_screen_depth():
+    try:
+        ensure_depth_maps()
+        payload = request.get_json(silent=True) or {}
+        depth = np.load(session_path("depth_map.npy"), allow_pickle=False)
+        value = sample_depth(depth, payload["x"], payload["y"])
+        return jsonify({"screen_depth": value}), 200
+    except (KeyError, TypeError, ValueError, OSError) as e:
+        return jsonify({"error": str(e)}), 400
 
 
 def parse_swap_eyes():
@@ -569,11 +605,13 @@ def cache_paths(scope):
     return {
         "left": session_path(f"{scope}_left.png"),
         "right": session_path(f"{scope}_right.png"),
+        "left_repair": session_path(f"{scope}_left_repair.png"),
+        "right_repair": session_path(f"{scope}_right_repair.png"),
         "meta": session_path(f"{scope}_stereo.json"),
     }
 
 
-def cache_matches(meta_path, pop_out, max_disparity_percentage, export_limit):
+def cache_matches(meta_path, pop_out, max_disparity_percentage, export_limit, screen_depth=None):
     try:
         with open(meta_path, "r", encoding="utf-8") as handle:
             meta = json.load(handle)
@@ -581,6 +619,8 @@ def cache_matches(meta_path, pop_out, max_disparity_percentage, export_limit):
             bool(meta.get("pop_out")) == bool(pop_out)
             and abs(float(meta.get("max_disparity_percentage")) - float(max_disparity_percentage)) < 1e-9
             and meta.get("export_limit") == export_limit
+            and meta.get("screen_depth") == screen_depth
+            and meta.get("renderer") == RENDERER_VERSION
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return False
@@ -590,7 +630,8 @@ def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
     ensure_depth_maps()
     paths = cache_paths(scope)
     export_limit = export_max_dimension(scope)
-    if os.path.exists(paths["left"]) and os.path.exists(paths["right"]) and cache_matches(paths["meta"], pop_out, max_disparity_percentage, export_limit):
+    screen_depth = parse_screen_depth()
+    if all(os.path.exists(paths[key]) for key in ("left", "right", "left_repair", "right_repair")) and cache_matches(paths["meta"], pop_out, max_disparity_percentage, export_limit, screen_depth):
         return paths
 
     image = cv2.imread(session_path("image.png"))
@@ -601,11 +642,13 @@ def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
     if export_limit is not None:
         image, depth_map = resize_image_and_depth(image, depth_map, export_limit)
 
-    left_image, right_image = anaglyph_generator.generate_stereo_images(
-        image, depth_map, pop_out, max_disparity_percentage
+    left_image, right_image, left_mask, right_mask = anaglyph_generator.generate_stereo_with_masks(
+        image, depth_map, pop_out, max_disparity_percentage, screen_depth
     )
     cv2.imwrite(paths["left"], left_image)
     cv2.imwrite(paths["right"], right_image)
+    cv2.imwrite(paths["left_repair"], left_mask.astype(np.uint8) * 255)
+    cv2.imwrite(paths["right_repair"], right_mask.astype(np.uint8) * 255)
     with open(paths["meta"], "w", encoding="utf-8") as handle:
         json.dump({
             "pop_out": pop_out,
@@ -613,6 +656,9 @@ def ensure_stereo_pair(scope, pop_out, max_disparity_percentage):
             "width": int(image.shape[1]),
             "height": int(image.shape[0]),
             "export_limit": export_limit,
+            "screen_depth": screen_depth,
+            "renderer": RENDERER_VERSION,
+            "repair_percent": float(np.mean(left_mask | right_mask) * 100),
         }, handle)
     return paths
 
@@ -654,20 +700,44 @@ def build_output(kind, scope, pop_out, strength, optimised, swap_eyes=False, ana
     left_image, right_image = stereo_arrays(scope, pop_out, strength, swap_eyes)
 
     if kind == "left":
-        return left_image
-    if kind == "right":
-        return right_image
-    if kind == "parallel":
-        return np.hstack((left_image, right_image))
-    if kind == "cross":
-        return np.hstack((right_image, left_image))
-    if kind == "anaglyph":
+        output = left_image
+    elif kind == "right":
+        output = right_image
+    elif kind == "parallel":
+        output = np.hstack((left_image, right_image))
+    elif kind == "cross":
+        output = np.hstack((right_image, left_image))
+    elif kind == "anaglyph":
         if optimised and anaglyph_type == "red-cyan" and anaglyph_color == "full":
-            return anaglyph_generator.generate_optimised_RR_anaglyph(left_image, right_image)
-        return make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
-    if kind in {"topbottom", "halfsbs", "rowinterlaced", "columninterlaced", "checkerboard"}:
-        return compatibility_stereo(left_image, right_image, kind)
-    raise ValueError("Unknown stereo output kind")
+            output = anaglyph_generator.generate_optimised_RR_anaglyph(left_image, right_image)
+        else:
+            output = make_anaglyph(left_image, right_image, anaglyph_type, anaglyph_color, anaglyph_left_color, anaglyph_right_color, anaglyph_left_gain, anaglyph_right_gain)
+    elif kind in {"topbottom", "halfsbs", "rowinterlaced", "columninterlaced", "checkerboard"}:
+        output = compatibility_stereo(left_image, right_image, kind)
+    else:
+        raise ValueError("Unknown stereo output kind")
+
+    # Diagnostics are preview-only. Cached eye images and downloaded files stay clean.
+    if scope == "preview" and request.args.get("repairs") == "true" and request.args.get("download") != "true":
+        paths = cache_paths(scope)
+        left_mask = cv2.imread(paths["left_repair"], cv2.IMREAD_GRAYSCALE)
+        right_mask = cv2.imread(paths["right_repair"], cv2.IMREAD_GRAYSCALE)
+        if swap_eyes:
+            left_mask, right_mask = right_mask, left_mask
+        if kind == "anaglyph":
+            mask = np.maximum(left_mask, right_mask)
+        elif kind in {"left", "right"}:
+            mask = left_mask if kind == "left" else right_mask
+        elif kind == "parallel":
+            mask = np.hstack((left_mask, right_mask))
+        elif kind == "cross":
+            mask = np.hstack((right_mask, left_mask))
+        else:
+            mask = compatibility_stereo(cv2.cvtColor(left_mask, cv2.COLOR_GRAY2BGR), cv2.cvtColor(right_mask, cv2.COLOR_GRAY2BGR), kind)[..., 0]
+        output = output.copy()
+        needs_repair = mask > 0
+        output[needs_repair] = np.rint(output[needs_repair] * 0.4 + np.array([30, 170, 255]) * 0.6).astype(np.uint8)
+    return output
 
 
 @app.route("/output/<kind>", methods=["GET"])
@@ -828,7 +898,7 @@ def special_wiggle():
         image, depth = source_and_depth("preview", 1100)
         frame_count = int(request.args.get("frames", 7))
         duration = max(40, min(1000, int(request.args.get("duration", 75))))
-        frames = technique_generator.wiggle_frames(image, depth, frame_count, strength, pop_out)
+        frames = technique_generator.wiggle_frames(image, depth, frame_count, strength, pop_out, parse_screen_depth())
         pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)) for frame in frames]
         buffer = io.BytesIO()
         pil_frames[0].save(buffer, format="GIF", save_all=True, append_images=pil_frames[1:], duration=duration, loop=0, disposal=2, optimize=False)
@@ -854,6 +924,7 @@ def special_pulfrich():
             frame_count=frame_count,
             strength=strength,
             dark_eye=dark_eye,
+            screen_depth=parse_screen_depth(),
         )
         pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)) for frame in frames]
         buffer = io.BytesIO()
@@ -901,7 +972,7 @@ def special_lenticular():
             effective_dpi = max(72, int(round(dpi * scale)))
         else:
             output_w, output_h, effective_dpi = full_w, full_h, dpi
-        output = technique_generator.lenticular(image, depth, output_w, output_h, effective_dpi, lpi, views, slant, strength, pop_out)
+        output = technique_generator.lenticular(image, depth, output_w, output_h, effective_dpi, lpi, views, slant, strength, pop_out, parse_screen_depth())
         return send_cv_image(output, "lenticular-interlaced", "png", 100, request.args.get("download", "false").lower() == "true")
     except Exception as e:
         return jsonify({"error": str(e)}), 400

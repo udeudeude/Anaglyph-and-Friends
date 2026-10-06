@@ -5,6 +5,7 @@ import TechniqueControls from './TechniqueControls';
 import UiIcon from './UiIcon';
 import { hostedBrowserDepthEnabled } from './browserDepth';
 import type { PrintPageIncomingArtwork } from './printPageAssets';
+import { pointInContainedImage, screenDepthParameters, type ImagePoint } from './screenDepth';
 import {
     mergeStoredSettings,
     stereoBasedTechniques,
@@ -54,6 +55,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
+    const renderRequestRef = useRef(0);
+    const pickerRequestRef = useRef(0);
 
     const [activeTechnique, setActiveTechnique] = useState<TechniqueId>(() => {
         const saved = localStorage.getItem('aaf-technique') as TechniqueId | null;
@@ -82,11 +85,18 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const [jpegQuality, setJpegQuality] = useState(() => readNumber('aaf-jpeg-quality', 95));
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({x: 0, y: 0});
+    const [screenDepth, setScreenDepth] = useState<number | null>(null);
+    const [pickingScreenDepth, setPickingScreenDepth] = useState(false);
+    const [pickerUrl, setPickerUrl] = useState<string | null>(null);
+    const [pickerBusy, setPickerBusy] = useState(false);
+    const [showRepairs, setShowRepairs] = useState(false);
+    const [previewError, setPreviewError] = useState('');
     const hostedEdition = hostedBrowserDepthEnabled();
     useEffect(() => () => { if (preparedDownload) URL.revokeObjectURL(preparedDownload.url); }, [preparedDownload]);
+    useEffect(() => () => { if (pickerUrl) URL.revokeObjectURL(pickerUrl); }, [pickerUrl]);
 
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings);
-    const renderParams = () => `pop_out=${popOut}&max_disparity_percentage=${appliedStrength}`;
+    const renderParams = () => new URLSearchParams({ pop_out: String(popOut), max_disparity_percentage: String(appliedStrength), ...screenDepthParameters(screenDepth) }).toString();
 
     const specialUrl = (technique: TechniqueId, scope: 'preview' | 'full') => {
         const base: Record<string, string> = {
@@ -96,6 +106,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             swap_eyes: String(swapEyes),
             format: downloadFormat,
             quality: String(jpegQuality),
+            ...screenDepthParameters(screenDepth),
         };
         if (technique === 'chromadepth') {
             const s = appliedSettings.chromadepth;
@@ -149,12 +160,16 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             anaglyph_right_color: calibration.rightColor,
             anaglyph_left_gain: String(calibration.leftGain),
             anaglyph_right_gain: String(calibration.rightGain),
+            ...screenDepthParameters(screenDepth),
+            repairs: String(scope === 'preview' && showRepairs),
         });
         return `${apiUrl}/output/${technique}?${params.toString()}`;
     };
 
     const renderActivePreview = async () => {
         if (!isDepthMapReady) return;
+        const renderId = ++renderRequestRef.current;
+        setPreviewError('');
         setOutputsAreLoading(true);
         setIsChangeAllowed(false);
         setProcessingStage(directOutputTechniques.has(activeTechnique) ? 'stereo' : 'technique');
@@ -170,28 +185,41 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             const response = await fetch(url, { method: 'GET', credentials: 'include' });
             if (!response.ok) throw new Error(`Technique preview failed with status ${response.status}`);
             const blob = await response.blob();
+            if (renderId !== renderRequestRef.current) return;
             const nextUrl = URL.createObjectURL(blob);
             setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return nextUrl; });
             setHasRendered(true);
             setProcessingStage('ready');
         } catch (error) {
+            if (renderId !== renderRequestRef.current) return;
             console.error('Failed to render selected technique', error);
+            setPreviewError(error instanceof Error ? error.message : 'Could not render the preview. Please retry.');
             setProcessingStage('error');
         } finally {
-            setOutputsAreLoading(false);
-            setIsChangeAllowed(true);
+            if (renderId === renderRequestRef.current) {
+                setOutputsAreLoading(false);
+                setIsChangeAllowed(true);
+            }
         }
     };
 
-    useEffect(() => { if (isDepthMapReady) void renderActivePreview(); }, [isDepthMapReady, activeTechnique, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings]);
+    useEffect(() => { if (isDepthMapReady) void renderActivePreview(); }, [isDepthMapReady, activeTechnique, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings, screenDepth, showRepairs]);
     useEffect(() => {
         if (!isDepthMapReady) {
+            renderRequestRef.current += 1;
+            pickerRequestRef.current += 1;
+            setOutputsAreLoading(false);
+            setScreenDepth(null);
+            setPickingScreenDepth(false);
+            setPickerBusy(false);
+            setPickerUrl(null);
+            setPreviewError('');
             setHasRendered(false);
             setPreviewUrl(old => { if (old) URL.revokeObjectURL(old); return null; });
         }
     }, [isDepthMapReady]);
 
-    useEffect(() => { localStorage.setItem('aaf-technique', activeTechnique); setZoom(1); setPan({x: 0, y: 0}); }, [activeTechnique]);
+    useEffect(() => { localStorage.setItem('aaf-technique', activeTechnique); setZoom(1); setPan({x: 0, y: 0}); setPickingScreenDepth(false); pickerRequestRef.current += 1; setPickerBusy(false); }, [activeTechnique]);
     useEffect(() => { localStorage.setItem('aaf-pop-out', String(popOut)); }, [popOut]);
     useEffect(() => { localStorage.setItem('aaf-swap-eyes', String(swapEyes)); }, [swapEyes]);
     useEffect(() => { localStorage.setItem('aaf-strength', String(appliedStrength)); }, [appliedStrength]);
@@ -203,6 +231,56 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     const applyTechniqueSettings = (settings?: TechniqueSettings) => setAppliedSettings(cloneSettings(settings || draftSettings));
     const fullscreen = () => previewRef.current?.requestFullscreen?.();
+
+    const cancelScreenDepth = () => {
+        pickerRequestRef.current += 1;
+        setPickingScreenDepth(false);
+        setPickerBusy(false);
+        setPickerUrl(null);
+    };
+
+    const startScreenDepth = async () => {
+        const requestId = ++pickerRequestRef.current;
+        setPreviewError('');
+        setPickerBusy(true);
+        try {
+            const response = await fetch(`${apiUrl}/stereo/source`, { credentials: 'include' });
+            if (!response.ok) throw new Error('Could not load the original photo. Please retry.');
+            const blob = await response.blob();
+            if (requestId !== pickerRequestRef.current) return;
+            setPickerUrl(URL.createObjectURL(blob));
+            setZoom(1);
+            setPan({x: 0, y: 0});
+            setPickingScreenDepth(true);
+        } catch (error) {
+            if (requestId === pickerRequestRef.current) setPreviewError(error instanceof Error ? error.message : 'Could not load the original photo.');
+        } finally {
+            if (requestId === pickerRequestRef.current) setPickerBusy(false);
+        }
+    };
+
+    const chooseScreenDepth = async (point: ImagePoint) => {
+        if (pickerBusy) return;
+        const requestId = ++pickerRequestRef.current;
+        setPickerBusy(true);
+        try {
+            const response = await fetch(`${apiUrl}/stereo/screen-depth`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(point),
+            });
+            if (!response.ok) throw new Error('Could not set screen depth. Please retry.');
+            const result = await response.json();
+            if (requestId !== pickerRequestRef.current) return;
+            if (!Number.isFinite(result.screen_depth)) throw new Error('Invalid screen depth returned. Please retry.');
+            setScreenDepth(result.screen_depth);
+            setPickingScreenDepth(false);
+            setPickerUrl(null);
+        } catch (error) {
+            if (requestId === pickerRequestRef.current) setPreviewError(error instanceof Error ? error.message : 'Could not set screen depth.');
+        } finally {
+            if (requestId === pickerRequestRef.current) setPickerBusy(false);
+        }
+    };
 
     const selectCoreTechnique = (technique: TechniqueId) => {
         setCompatibilityMenuOpen(false);
@@ -334,6 +412,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                 popOut,
                 swapEyes,
                 strength: appliedStrength,
+                screenDepth,
                 retinalRivalry: optimiseRRAnaglyph,
                 outputFormat: downloadFormat,
                 jpegQuality,
@@ -374,6 +453,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             const params = new URLSearchParams({
                 scope: 'full', format: downloadFormat, quality: String(jpegQuality),
                 pop_out: String(popOut), max_disparity_percentage: String(appliedStrength), swap_eyes: String(swapEyes),
+                ...screenDepthParameters(screenDepth),
             });
             const response = await fetch(`${apiUrl}/output/${kind}?${params.toString()}`, { credentials: 'include' });
             if (!response.ok) throw new Error(`Eye download failed: ${response.status}`);
@@ -408,7 +488,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [activeTechnique, previewUrl, isDepthMapReady, fullPreparing, downloadFormat, jpegQuality, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings]);
+    }, [activeTechnique, previewUrl, isDepthMapReady, fullPreparing, downloadFormat, jpegQuality, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings, screenDepth]);
 
     const zoomBy = (amount: number) => {
         const next = Math.max(1, Math.min(4, Number((zoom + amount).toFixed(2))));
@@ -417,7 +497,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     };
     const resetZoom = () => { setZoom(1); setPan({x: 0, y: 0}); };
     const beginPan = (event: ReactPointerEvent<HTMLDivElement>) => {
-        if (zoom <= 1) return;
+        if (zoom <= 1 || pickingScreenDepth) return;
         dragRef.current = {x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y};
         event.currentTarget.setPointerCapture(event.pointerId);
     };
@@ -447,7 +527,13 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             <input type="range" min="35" max="100" step="1" value={viewScale} onChange={(e) => setViewScale(parseInt(e.target.value))} />
             <div className="rangeLabels"><span>Smaller</span><span>Fill stage</span></div>
         </div>
-        {usesStereo && <label className="toggleSetting"><span><strong>Pop out</strong><small>Place depth in front of screen</small></span><input type="checkbox" checked={popOut} disabled={!isChangeAllowed} onChange={(e) => setPopOut(e.target.checked)} /></label>}
+        {usesStereo && <label className="toggleSetting"><span><strong>Pop out</strong><small>{screenDepth === null ? 'Place depth in front of screen' : 'Change to reset the chosen screen depth'}</small></span><input type="checkbox" checked={popOut} disabled={!isChangeAllowed || pickingScreenDepth} onChange={(e) => { setPopOut(e.target.checked); setScreenDepth(null); }} /></label>}
+        {usesStereo && <div className="settingGroup screenDepthSetting">
+            <div className="settingTitle"><span>Screen depth</span><strong>{screenDepth === null ? 'Automatic' : 'Subject selected'}</strong></div>
+            <small>Choose the part of the photo that should sit at the screen.</small>
+            <div><button onClick={() => void startScreenDepth()} disabled={!isDepthMapReady || !isChangeAllowed || pickerBusy || pickingScreenDepth}>Set screen depth…</button><button onClick={() => setScreenDepth(null)} disabled={screenDepth === null || !isChangeAllowed || pickingScreenDepth}>Reset</button></div>
+        </div>}
+        {directOutputTechniques.has(activeTechnique) && <label className="toggleSetting"><span><strong>Show repaired areas</strong><small>Orange marks reconstructed pixels. Downloads stay clean.</small></span><input type="checkbox" checked={showRepairs} disabled={!isChangeAllowed || pickingScreenDepth} onChange={(e) => setShowRepairs(e.target.checked)} /></label>}
         {usesEyeOrder && <label className="toggleSetting"><span><strong>Swap left / right</strong><small>Reverse eye order without regenerating depth</small></span><input type="checkbox" checked={swapEyes} disabled={!isChangeAllowed} onChange={(e) => setSwapEyes(e.target.checked)} /></label>}
         {showRetinalRivalry && <label className="toggleSetting"><span><strong>Reduce retinal rivalry</strong><small>Optimized full-color red/cyan only</small></span><input type="checkbox" checked={optimiseRRAnaglyph} disabled={!isChangeAllowed} onChange={(e) => setOptimiseRRAnaglyph(e.target.checked)} /></label>}
     </div>;
@@ -488,11 +574,16 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
             </div>
             <div className="techniqueSummary"><strong>{info.label}</strong><span>{info.description}</span>{info.usage && <small>{info.usage}</small>}<em>{info.family}</em></div>
 
-            <div className={`previewFrame ${zoom > 1 ? 'zoomed' : ''}`} ref={previewRef} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onDoubleClick={resetZoom}>
-                {previewUrl ? <img src={previewUrl} alt={info.label} draggable={false} style={{maxWidth: `${viewScale}%`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`}} /> : (
+            <div className={`previewFrame ${zoom > 1 ? 'zoomed' : ''} ${pickingScreenDepth ? 'pickingScreenDepth' : ''}`} ref={previewRef} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onDoubleClick={resetZoom}>
+                {pickingScreenDepth && pickerUrl ? <img src={pickerUrl} alt="Original photo: choose a subject for screen depth" draggable={false} style={{maxWidth: `${viewScale}%`}} tabIndex={0} role="button" aria-label="Choose screen depth in the original photo; Enter selects the center" onPointerUp={(e) => {
+                    const image = e.currentTarget;
+                    const point = pointInContainedImage(e.clientX, e.clientY, image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight);
+                    if (point) void chooseScreenDepth(point);
+                }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void chooseScreenDepth({x: 0.5, y: 0.5}); } else if (e.key === 'Escape') cancelScreenDepth(); }} /> : previewUrl ? <img src={previewUrl} alt={info.label} draggable={false} style={{maxWidth: `${viewScale}%`, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`}} /> : (
                     <div className="emptyStage"><div className="stereoGlyph">◉ ◉</div><strong>Your 3D result will appear here</strong><span>Drop, choose, or paste an image in the source panel.</span></div>
                 )}
-                {outputsAreLoading && <div className="loadingVeil"><div className="largeLoader" /><span>Rendering {info.label}…</span></div>}
+                {(outputsAreLoading || pickerBusy) && <div className="loadingVeil"><div className="largeLoader" /><span>{pickerBusy ? 'Preparing screen depth…' : `Rendering ${info.label}…`}</span></div>}
+                {pickingScreenDepth && <div className="screenDepthPrompt" onPointerDown={(e) => e.stopPropagation()}><span>Click your subject in the original photo to place it at screen depth.</span><button onClick={cancelScreenDepth}>Cancel</button></div>}
                 <div className="fullscreenHotZone" aria-hidden="true" />
                 <div className="fullscreenDock" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                     <div className="fullscreenDockHeader">
@@ -504,6 +595,8 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
                     {showTechniqueSettings && <TechniqueControls technique={activeTechnique} settings={draftSettings} setSettings={setDraftSettings} onApply={applyTechniqueSettings} dirty={techniqueDirty} disabled={!isChangeAllowed} apiUrl={apiUrl} />}
                 </div>
             </div>
+            {showRepairs && directOutputTechniques.has(activeTechnique) && !pickingScreenDepth && <p className="repairLegend">Orange = reconstructed areas, including exposed frame edges. Preview only.</p>}
+            {previewError && <p className="finalDownloadError" role="alert">{previewError}</p>}
 
             <div className="previewMeta">
                 <div><strong>{info.label}</strong><span>{info.description}</span>{info.usage && <small>{info.usage}</small>}</div>

@@ -52,6 +52,7 @@ jobs:
           python backend/test_technique_generator.py
           python backend/test_phantogram_generator.py
           python backend/test_depth_regenerate.py
+          python backend/test_stereo_renderer.py
       - name: Get pinned V2 Small code and verified weights
         run: |
           mkdir -p backend/ai_models/checkpoints
