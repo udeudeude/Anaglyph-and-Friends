@@ -400,6 +400,13 @@ class TechniqueGenerator:
             frames = frames + frames[-2:0:-1]
         return frames
 
+    @staticmethod
+    def pulfrich_offsets(frame_count: int = 12, dark_eye: str = "right") -> np.ndarray:
+        """Return a one-way sweep whose near motion follows the darkened eye."""
+        frame_count = max(6, min(30, int(frame_count)))
+        direction = -1.0 if str(dark_eye).lower() == "left" else 1.0
+        return direction * np.linspace(-1.0, 1.0, frame_count, dtype=np.float32)
+
     def pulfrich_frames(
         self,
         image: np.ndarray,
@@ -409,20 +416,28 @@ class TechniqueGenerator:
         dark_eye: str = "right",
         screen_depth=None,
     ):
-        """Create a smooth oscillating virtual-camera pan for Pulfrich viewing.
+        """Create a one-way depth-mapped lateral sweep for Pulfrich viewing.
 
-        A neutral-density filter over one eye introduces a temporal delay; the
-        sinusoidal lateral motion turns that delay into binocular disparity.
-        Reversing the filtered eye reverses the animation phase so the apparent
-        depth trajectory can be matched to the glasses.
+        A darkened eye is delayed relative to the bright eye. With the right
+        eye darkened, rightward motion is perceived nearer and leftward motion
+        farther; the polarity reverses for a darkened left eye. A reversing
+        sweep would therefore invert the intended depth every half-cycle, so
+        Pulfrich output deliberately never ping-pongs.
+
+        The selected screen plane remains stationary. Nearer regions move
+        toward the selected dark eye and farther regions move the opposite way.
+        When no explicit screen depth is selected, use the image's median depth
+        as a neutral plane so the effect straddles the screen instead of placing
+        the entire reconstructed scene on one side of it.
         """
-        frame_count = max(6, min(30, int(frame_count)))
         strength = max(0.1, min(6.0, float(strength)))
-        direction = -1.0 if str(dark_eye).lower() == "left" else 1.0
-        phases = np.linspace(0.0, 2.0 * np.pi, frame_count, endpoint=False)
-        offsets = direction * np.sin(phases)
+        plane = float(screen_depth) if screen_depth is not None else float(np.median(depth))
+        plane = max(0.0, min(1.0, plane))
+        max_displacement = strength / 100.0 * image.shape[1] / 2.0
+        offsets = self.pulfrich_offsets(frame_count, dark_eye)
+        from stereo_renderer import render_view
         return [
-            self.generate_view(image, depth, float(offset), False, strength, screen_depth)
+            render_view(image, depth, float(offset) * max_displacement, plane)[0]
             for offset in offsets
         ]
 
