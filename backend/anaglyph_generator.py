@@ -12,77 +12,20 @@ class AnaglyphGenerator:
             cls._instance = super(AnaglyphGenerator, cls).__new__(cls)
         return cls._instance
 
-    def generate_stereo_images(self, image: np.ndarray, depth_map_normalised: np.ndarray, pop_out=True,
-                              max_disparity_percentage=25) -> (np.ndarray, np.ndarray):
-        """
-        Generate a stereo image pair from a single image.
-        :param image: Image to generate a stereo pair from.
-        :param depth_map_normalised: Normalised depth map.
-        :param pop_out: Whether to make the image pop out or sink in.
-        :param max_disparity_percentage: What percentage of the total width the maximum disparity should be.
-        :return: Stereo image pair (left, right).
-        """
-        height, width, _ = image.shape
+    def generate_stereo_with_masks(self, image, depth_map_normalised, pop_out=True,
+                                   max_disparity_percentage=25, screen_depth=None):
+        from stereo_renderer import render_view
+        plane = float(screen_depth) if screen_depth is not None else (0.0 if pop_out else 1.0)
+        half_baseline = max_disparity_percentage / 100.0 * image.shape[1] / 2.0
+        left, left_mask = render_view(image, depth_map_normalised, half_baseline, plane)
+        right, right_mask = render_view(image, depth_map_normalised, -half_baseline, plane)
+        return left, right, left_mask, right_mask
 
-
-        max_disparity = int(max_disparity_percentage / 100 * width)
-
-        # Right image has to be original shifted left, so right image has to sample pixels to the right of the corresponding pixel in the original
-        # Left image has to be original shifted right, so left image has to sample pixels to the left of the corresponding pixel in the original
-        # The further away the pixel, the more it has to shift, with a linear interpolation between 0 and max_disparity / 2
-        max_disparity_from_original = max_disparity / 2
-
-        start_time = time.time()
-        # Vectorise and precompute the shifts
-        # Pop out true or false flips the depth map, to make the closest have more disparity or make the furthest have more disparity
-        shifts = (max_disparity_from_original * (depth_map_normalised if pop_out else 1 - depth_map_normalised)).astype(np.int32)
-
-        # Vectorise Shifting
-        cols = np.arange(width)  # [0, 1, 2, ..., width - 1]
-        # Pop out true or false flips the direction of the shift
-        if pop_out:
-            left_end = cols + shifts  # Broadcasts cols, and results in a 2D array where left_samples[row, col] = sample_col
-            right_end = cols - shifts
-        else:
-            left_end = cols - shifts
-            right_end = cols + shifts
-
-        left_end = np.clip(left_end, 0, width - 1)  # Clip into range
-        right_end = np.clip(right_end, 0, width - 1)  # Removes pixels that would end up off screen
-
-        rows = np.arange(height).reshape(height, 1)  # make a rows index column vector
-
-        # Default is -1, so we can see where the holes are
-        # Previously used 0 as default, but black was a valid colour in the image, that was being interpreted as holes
-        # int16 so -1 is a valid value
-        left_image = np.full_like(image, -1, dtype=np.int16)
-        right_image = np.full_like(image, -1, dtype=np.int16)
-
-        # Sample the pixels, rows is broadcast to 2D and the samples are used to get the row and col indices of each
-        # cell in image for each cell in left and right image
-        if pop_out:
-            # Reverse the order of assignment for left, such that closer pixels overwrite further pixels
-            # This was why the escher columns were very thin, the background was overwriting them
-            # Don't worry about how it works, I just experimented with the code until it worked
-            left_image[rows, left_end[:, ::-1]] = image[:, ::-1]
-            right_image[rows, right_end] = image
-        else:
-            # Hypothesis: pop in reverses direction of shift, so default assignment will now work for left_image but not right
-            # Above is actually wrong for some reason, the exact same code works for both pop_out and pop_in
-            # My hypotheses why is that we would have needed to swap the right instead of the left to make closer pixels overwrite further pixels
-            # But when pop in is required, we have reversed the direction of the depth map,
-            # so we want "further" pixels (which are actually closer) to overwrite "closer" pixels (which are actually further)
-            left_image[rows, left_end[:, ::-1]] = image[:, ::-1]
-            right_image[rows, right_end] = image
-
-        print(f"Elapsed time for stereo image pair with holes: {time.time() - start_time:.4f} seconds")
-
-        start_time = time.time()
-        # these are int16 before filling holes, becomes returns uint8
-        left_image = self.fill_holes(left_image)
-        right_image = self.fill_holes(right_image)  # Reverse the right image to fill holes from right to left
-        print(f"Elapsed time for stereo image pair fill holes: {time.time() - start_time:.4f} seconds")
-        return left_image, right_image
+    def generate_stereo_images(self, image, depth_map_normalised, pop_out=True,
+                               max_disparity_percentage=25, screen_depth=None):
+        left, right, _, _ = self.generate_stereo_with_masks(
+            image, depth_map_normalised, pop_out, max_disparity_percentage, screen_depth)
+        return left, right
 
     def generate_stereo_right_from_left(self, left_image: np.ndarray, depth_map_normalised: np.ndarray, pop_out=True,
                                max_disparity_percentage=25) -> (np.ndarray, np.ndarray):

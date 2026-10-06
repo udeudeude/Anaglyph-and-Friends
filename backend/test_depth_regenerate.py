@@ -50,7 +50,7 @@ def test_hosted_export_limit_and_local_full_resolution():
         with backend.app.test_request_context("/prepare-full"):
             from flask import session
             session["session_id"] = "export-test"
-            with patch.object(backend, "ensure_depth_maps"), patch.object(backend.cv2, "imread", return_value=image), patch.object(backend.np, "load", return_value=depth), patch.object(backend, "resize_image_and_depth", return_value=(image, depth)) as resize, patch.object(backend.anaglyph_generator, "generate_stereo_images", return_value=(image, image)):
+            with patch.object(backend, "ensure_depth_maps"), patch.object(backend.cv2, "imread", return_value=image), patch.object(backend.np, "load", return_value=depth), patch.object(backend, "resize_image_and_depth", return_value=(image, depth)) as resize, patch.object(backend.anaglyph_generator, "generate_stereo_with_masks", return_value=(image, image, np.zeros(depth.shape, dtype=bool), np.zeros(depth.shape, dtype=bool))):
                 with patch.dict("os.environ", {"AAF_BROWSER_DEPTH": "true"}):
                     paths = backend.ensure_stereo_pair("full", False, 2)
                     assert resize.call_count == 1 and resize.call_args.args[0] is image

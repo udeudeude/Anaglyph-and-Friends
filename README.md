@@ -17,6 +17,14 @@ If something fails, paste the exact error message into the same chat. That is of
 
 The original Anaglyph AI project and hosted demonstration were created by **Duy Huynh**. This repository version extends the original application for local/offline stereoscopic experimentation.
 
+## Stereo rendering controls
+
+Single-image stereo now uses fractional pixel shifts, depth-aware visibility and background-aware gap repair. It runs on the CPU in both the hosted and Mac editions without an additional model download. Hidden texture is reconstructed approximately; fine hair, foliage and large depth jumps may still show stretched detail.
+
+After loading a photo and its depth map, choose **Set screen depth…**, then click your subject in the original photo. That depth stays aligned between the two eyes, placing it at the screen plane. **Reset** restores the automatic plane; changing **Pop out** also resets it. The selected plane applies to previews, final output and separate eye downloads, including viewer, wiggle and lenticular outputs. It resets when a new photo or depth map is loaded.
+
+For anaglyph, parallel, cross-eyed and digital display formats, enable **Show repaired areas** to mark missing source coverage in orange, including exposed frame edges. This diagnostic appears only in the preview; downloads and print-page artwork remain clean. Start around 1–2% strength and compare portraits, foliage, lettering and thin objects before increasing it.
+
 ## New to GitHub? Start here
 
 You can use the **hosted web edition** without installing anything, download the **standalone Mac edition**, or set up the **local developer edition** from source.

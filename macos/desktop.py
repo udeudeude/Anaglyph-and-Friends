@@ -89,6 +89,12 @@ def smoke_test():
             output = client.get("/output/anaglyph?scope=full&download=true", headers=headers)
             assert output.status_code == 200, output.data
             assert Image.open(io.BytesIO(output.data)).size == (80, 60)
+            assert client.get("/stereo/source", headers=headers).status_code == 200
+            plane = client.post("/stereo/screen-depth", headers=headers, json={"x": .5, "y": .5})
+            assert plane.status_code == 200 and 0 <= plane.json["screen_depth"] <= 1
+            query = "?screen_depth=" + str(plane.json["screen_depth"])
+            assert client.get("/render" + query, headers=headers).status_code == 200
+            assert client.get("/output/anaglyph" + query + "&repairs=true", headers=headers).status_code == 200
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "brush", "points": [{"x": .5, "y": .5}], "radius": .1, "delta": .1}).status_code == 200
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "undo"}).status_code == 200
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "redo"}).status_code == 200
