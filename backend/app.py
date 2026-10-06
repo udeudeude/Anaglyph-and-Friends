@@ -926,14 +926,20 @@ def special_pulfrich():
             dark_eye=dark_eye,
             screen_depth=parse_screen_depth(),
         )
+        # A Pulfrich sweep must not run backward with a fixed darkened eye:
+        # reversing motion reverses perceived depth. Break feature continuity
+        # with a brief blank reset before the GIF loops to the sweep start.
+        reset_frame = np.zeros_like(frames[0])
+        frames = frames + [reset_frame]
         pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)) for frame in frames]
+        frame_durations = [duration] * (len(pil_frames) - 1) + [max(70, duration)]
         buffer = io.BytesIO()
         pil_frames[0].save(
             buffer,
             format="GIF",
             save_all=True,
             append_images=pil_frames[1:],
-            duration=duration,
+            duration=frame_durations,
             loop=0,
             disposal=2,
             optimize=False,
