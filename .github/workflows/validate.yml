@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: node src/regression_contract.test.mjs
       - run: node --experimental-strip-types src/depthGenerators.test.mjs
+      - run: node --experimental-strip-types src/batchProcessing.test.mjs
       - run: node --experimental-strip-types src/screenDepth.test.mjs
       - run: node --experimental-strip-types src/modelPhantogram.test.mjs
       - run: node --experimental-strip-types src/phantogramDiagnosticSheet.test.mjs
@@ -71,4 +72,5 @@ jobs:
       - run: python backend/test_technique_generator.py
       - run: python backend/test_phantogram_generator.py
       - run: python backend/test_depth_regenerate.py
+      - run: python backend/test_batch_workspace.py
       - run: python backend/test_stereo_renderer.py

@@ -8,7 +8,10 @@ import { activeDepthMapPath, AUTOMATIC_DEPTH_GENERATOR, generatorDiffersFromActi
 import type { DepthGeneratorSelection } from "./depthGenerators";
 import UiIcon from "./UiIcon";
 
+import type { BatchDepthSettings } from './batchProcessing';
+
 type Props = {
+    onDepthRecipeChange?: (settings: BatchDepthSettings) => void;
     setIsDepthMapReadyStateLifter: (ready: boolean) => void;
     isChangeAllowed: boolean;
     setIsChangeAllowed: (allowed: boolean) => void;
@@ -27,7 +30,7 @@ type HostedDepthFailure = BrowserDepthFailureInfo | {
     technical: string;
 };
 
-function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onSourceFile, incomingSourceFile, onIncomingSourceConsumed }: Props) {
+function ImageUpload({ onDepthRecipeChange, setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onSourceFile, incomingSourceFile, onIncomingSourceConsumed }: Props) {
     const imageInputRef = useRef<HTMLInputElement>(null);
     const depthInputRef = useRef<HTMLInputElement>(null);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -69,6 +72,10 @@ function ImageUpload({ setIsDepthMapReadyStateLifter, isChangeAllowed, setIsChan
     const selectedGenerator = resolveDepthGenerator(depthGenerator, depthRuntime);
     const differentGeneratorSelected = activeAiGenerator !== null && generatorDiffersFromActive(depthGenerator, activeAiGenerator, depthRuntime);
     const showDepthGeneration = !!sourceFile && (depthSource === 'imported' || depthHistoryCount > 0 || activeAiGenerator === null || differentGeneratorSelected);
+
+    useEffect(() => {
+        onDepthRecipeChange?.({ generator: activeAiGenerator ?? depthGenerator, invert: depthInvert });
+    }, [activeAiGenerator, depthGenerator, depthInvert, onDepthRecipeChange]);
 
     const replaceObjectUrl = (setter: (value: string | null) => void, oldUrl: string | null, blob: Blob | null) => {
         if (oldUrl) URL.revokeObjectURL(oldUrl);

@@ -3,6 +3,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import "./styles/AnaglyphEditor.css";
 import TechniqueControls from './TechniqueControls';
 import UiIcon from './UiIcon';
+import BatchWorkspace from './BatchWorkspace';
+import type { BatchRecipe, BatchDepthSettings } from './batchProcessing';
+import { directOutputTechniques, directOutputUrl, specialOutputUrl, outputFilename, type OutputRecipe } from './techniqueOutput';
 import { hostedBrowserDepthEnabled } from './browserDepth';
 import type { PrintPageIncomingArtwork } from './printPageAssets';
 import { pointInContainedImage, screenDepthParameters, type ImagePoint } from './screenDepth';
@@ -18,6 +21,7 @@ type ProcessingStage = 'idle' | 'uploading' | 'depth' | 'stereo' | 'technique' |
 
 type Props = {
     isDepthMapReady: boolean;
+    depthSettings: BatchDepthSettings;
     isChangeAllowed: boolean;
     setIsChangeAllowed: (value: boolean) => void;
     setProcessingStage: (stage: ProcessingStage) => void;
@@ -32,7 +36,6 @@ type Props = {
 
 const coreTechniques = new Set<TechniqueId>(['anaglyph', 'parallel', 'cross']);
 const compatibilityTechniques = new Set<TechniqueId>(['topbottom', 'halfsbs', 'rowinterlaced', 'columninterlaced', 'checkerboard']);
-const directOutputTechniques = new Set<TechniqueId>([...coreTechniques, ...compatibilityTechniques]);
 const allTechniques = new Set<TechniqueId>([
     ...directOutputTechniques,
     'chromadepth', 'cardboard', 'stereoscope', 'mirror', 'wiggle', 'pulfrich', 'randomdot', 'pattern', 'lenticular',
@@ -51,7 +54,7 @@ const readNumber = (key: string, fallback: number) => {
 
 const cloneSettings = (settings: TechniqueSettings): TechniqueSettings => JSON.parse(JSON.stringify(settings));
 
-function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenTransparency, onOpenPrintCalibration, onOpenPrintPage, onPreparePrintPage }: Props) {
+function AnaglyphEditor({ depthSettings, isDepthMapReady, isChangeAllowed, setIsChangeAllowed, setProcessingStage, onOpenPhantogram, onOpenColorReveal, onOpenLayered, onOpenTransparency, onOpenPrintCalibration, onOpenPrintPage, onPreparePrintPage }: Props) {
     const apiUrl = import.meta.env.VITE_FLASK_BACKEND_API_URL || "http://localhost:8000";
     const previewRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{x: number; y: number; panX: number; panY: number} | null>(null);
@@ -91,6 +94,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const [pickerBusy, setPickerBusy] = useState(false);
     const [showRepairs, setShowRepairs] = useState(false);
     const [previewError, setPreviewError] = useState('');
+    const [batchRecipe, setBatchRecipe] = useState<BatchRecipe | null>(null);
     const hostedEdition = hostedBrowserDepthEnabled();
     useEffect(() => () => { if (preparedDownload) URL.revokeObjectURL(preparedDownload.url); }, [preparedDownload]);
     useEffect(() => () => { if (pickerUrl) URL.revokeObjectURL(pickerUrl); }, [pickerUrl]);
@@ -98,73 +102,12 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
     const techniqueDirty = JSON.stringify(draftSettings) !== JSON.stringify(appliedSettings);
     const renderParams = () => new URLSearchParams({ pop_out: String(popOut), max_disparity_percentage: String(appliedStrength), ...screenDepthParameters(screenDepth) }).toString();
 
-    const specialUrl = (technique: TechniqueId, scope: 'preview' | 'full') => {
-        const base: Record<string, string> = {
-            scope,
-            pop_out: String(popOut),
-            max_disparity_percentage: String(appliedStrength),
-            swap_eyes: String(swapEyes),
-            format: downloadFormat,
-            quality: String(jpegQuality),
-            ...screenDepthParameters(screenDepth),
-        };
-        if (technique === 'chromadepth') {
-            const s = appliedSettings.chromadepth;
-            return `${apiUrl}/special/chromadepth?${new URLSearchParams({...base, color_strength: String(s.colorStrength), reverse: String(s.reverse)}).toString()}`;
-        }
-        if (technique === 'cardboard') {
-            const s = appliedSettings.cardboard;
-            return `${apiUrl}/special/cardboard?${new URLSearchParams({...base, width: String(s.width), height: String(s.height), screen_width_mm: String(s.screenWidthMm), lens_separation_mm: String(s.lensSeparationMm), image_scale: String(s.imageScale)}).toString()}`;
-        }
-        if (technique === 'stereoscope') {
-            const s = appliedSettings.stereoscope;
-            return `${apiUrl}/special/stereoscope?${new URLSearchParams({...base, dpi: String(s.dpi), card_width: String(s.cardWidth), card_height: String(s.cardHeight), image_width: String(s.imageWidth), image_height: String(s.imageHeight), gap: String(s.gap), arch: String(s.arch), title: s.title, caption: s.caption, publisher: s.publisher, card_tone: s.cardTone}).toString()}`;
-        }
-        if (technique === 'mirror') {
-            const s = appliedSettings.mirror;
-            return `${apiUrl}/special/mirror-stereoscope?${new URLSearchParams({...base, dpi: String(s.dpi), card_width: String(s.cardWidth), card_height: String(s.cardHeight), image_width: String(s.imageWidth), image_height: String(s.imageHeight), mirror_gap: String(s.mirrorGap), reflected_eye: s.reflectedEye, show_guide: String(s.showGuide)}).toString()}`;
-        }
-        if (technique === 'wiggle') {
-            const s = appliedSettings.wiggle;
-            return `${apiUrl}/special/wiggle?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration)}).toString()}`;
-        }
-        if (technique === 'pulfrich') {
-            const s = appliedSettings.pulfrich;
-            return `${apiUrl}/special/pulfrich?${new URLSearchParams({...base, frames: String(s.frames), duration: String(s.duration), strength: String(s.strength), dark_eye: s.darkEye}).toString()}`;
-        }
-        if (technique === 'randomdot' || technique === 'pattern') {
-            const s = appliedSettings.autostereogram;
-            return `${apiUrl}/special/autostereogram?${new URLSearchParams({...base, style: technique === 'pattern' ? 'pattern' : 'random', separation: String(s.separation), depth_strength: String(s.depthStrength), dot_size: String(s.dotSize), viewing: s.viewing, guides: String(s.guides), color: String(s.color), revision: String(s.patternRevision)}).toString()}`;
-        }
-        if (technique === 'lenticular') {
-            const s = appliedSettings.lenticular;
-            return `${apiUrl}/special/lenticular?${new URLSearchParams({...base, dpi: String(s.dpi), lpi: String(s.lpi), width_in: String(s.widthIn), height_in: String(s.heightIn), views: String(s.views), slant: String(s.slant)}).toString()}`;
-        }
-        throw new Error(`No special renderer for ${technique}`);
-    };
-
-    const directUrl = (technique: TechniqueId, scope: 'preview' | 'full') => {
-        const calibration = appliedSettings.anaglyph[appliedSettings.anaglyph.target];
-        const params = new URLSearchParams({
-            scope,
-            format: downloadFormat,
-            quality: String(jpegQuality),
-            pop_out: String(popOut),
-            max_disparity_percentage: String(appliedStrength),
-            swap_eyes: String(swapEyes),
-            optimised_RR_anaglyph: String(optimiseRRAnaglyph),
-            anaglyph_type: appliedSettings.anaglyph.glasses,
-            anaglyph_color: appliedSettings.anaglyph.colorMode,
-            anaglyph_target: appliedSettings.anaglyph.target,
-            anaglyph_left_color: calibration.leftColor,
-            anaglyph_right_color: calibration.rightColor,
-            anaglyph_left_gain: String(calibration.leftGain),
-            anaglyph_right_gain: String(calibration.rightGain),
-            ...screenDepthParameters(screenDepth),
-            repairs: String(scope === 'preview' && showRepairs),
-        });
-        return `${apiUrl}/output/${technique}?${params.toString()}`;
-    };
+    const outputRecipe = (): OutputRecipe => ({
+        technique: activeTechnique, settings: appliedSettings, popOut, strength: appliedStrength,
+        swapEyes, retinalRivalry: optimiseRRAnaglyph, screenDepth, format: downloadFormat, jpegQuality,
+    });
+    const specialUrl = (technique: TechniqueId, scope: 'preview' | 'full') => specialOutputUrl(apiUrl, { ...outputRecipe(), technique }, scope);
+    const directUrl = (technique: TechniqueId, scope: 'preview' | 'full') => directOutputUrl(apiUrl, { ...outputRecipe(), technique }, scope, showRepairs);
 
     const renderActivePreview = async () => {
         if (!isDepthMapReady) return;
@@ -331,29 +274,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         link.remove();
     };
 
-    const currentFilename = () => {
-        const ext = activeTechnique === 'wiggle' || activeTechnique === 'pulfrich' ? 'gif' : (activeTechnique === 'stereoscope' || activeTechnique === 'mirror' || activeTechnique === 'lenticular' ? 'png' : downloadFormat === 'png' ? 'png' : 'jpg');
-        const names: Record<TechniqueId, string> = {
-            anaglyph: `${appliedSettings.anaglyph.glasses}-anaglyph`,
-            parallel: 'parallel-stereo',
-            cross: 'cross-eyed-stereo',
-            chromadepth: 'chromadepth',
-            cardboard: 'cardboard-stereo',
-            stereoscope: 'stereoscope-card',
-            mirror: 'single-mirror-stereoscope',
-            wiggle: 'wiggle-gram',
-            pulfrich: 'pulfrich-motion-3d',
-            randomdot: 'random-dot-stereogram',
-            pattern: 'pattern-stereogram',
-            lenticular: 'lenticular-interlaced',
-            topbottom: 'top-bottom-stereo',
-            halfsbs: 'half-width-side-by-side',
-            rowinterlaced: 'row-interlaced-stereo',
-            columninterlaced: 'column-interlaced-stereo',
-            checkerboard: 'checkerboard-stereo',
-        };
-        return `${names[activeTechnique]}.${ext}`;
-    };
+    const currentFilename = () => outputFilename(outputRecipe());
 
     const fetchFullOutputBlob = async () => {
         let url: string;
@@ -470,7 +391,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.repeat) return;
+            if (event.repeat || batchRecipe) return;
             const target = event.target as HTMLElement | null;
             if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
             const key = event.key.toLowerCase();
@@ -488,7 +409,7 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [activeTechnique, previewUrl, isDepthMapReady, fullPreparing, downloadFormat, jpegQuality, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings, screenDepth]);
+    }, [batchRecipe, activeTechnique, previewUrl, isDepthMapReady, fullPreparing, downloadFormat, jpegQuality, popOut, swapEyes, appliedStrength, optimiseRRAnaglyph, appliedSettings, screenDepth]);
 
     const zoomBy = (amount: number) => {
         const next = Math.max(1, Math.min(4, Number((zoom + amount).toFixed(2))));
@@ -506,6 +427,11 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
         setPan({x: dragRef.current.panX + event.clientX - dragRef.current.x, y: dragRef.current.panY + event.clientY - dragRef.current.y});
     };
     const endPan = () => { dragRef.current = null; };
+
+    const openBatch = () => {
+        setBatchRecipe(structuredClone({ ...outputRecipe(), settings: draftSettings, strength: sliderValue,
+            depth: depthSettings, capturedAt: new Date().toISOString() }));
+    };
 
     const usesStereo = stereoBasedTechniques.has(activeTechnique);
     const usesEyeOrder = eyeOrderTechniques.has(activeTechnique);
@@ -540,9 +466,10 @@ function AnaglyphEditor({ isDepthMapReady, isChangeAllowed, setIsChangeAllowed, 
 
     return (
         <div className="editorWorkspace">
+            {batchRecipe && <BatchWorkspace apiUrl={apiUrl} recipe={batchRecipe} hosted={hostedEdition} onClose={() => setBatchRecipe(null)} />}
             <div className="editorHeader">
                 <div><div className="panelLabel">OUTPUT</div><h2>3D Technique Studio</h2></div>
-                <div className="generationState">{fullPreparing ? "Preparing final output…" : outputsAreLoading ? <><span className="miniLoader" /> Rendering {info.label}</> : isDepthMapReady ? "Ready" : "Waiting for image"}</div>
+                <div className="editorHeaderActions"><button className="batchLaunch" onClick={openBatch} disabled={!isChangeAllowed || fullPreparing || outputsAreLoading || pickerBusy}><UiIcon name="batch" /> Batch photos…</button><div className="generationState">{fullPreparing ? "Preparing final output…" : outputsAreLoading ? <><span className="miniLoader" /> Rendering {info.label}</> : isDepthMapReady ? "Ready" : "Waiting for image"}</div></div>
             </div>
 
             <div className="techniqueChooser">
