@@ -17,6 +17,16 @@ If something fails, paste the exact error message into the same chat. That is of
 
 The original Anaglyph AI project and hosted demonstration were created by **Duy Huynh**. This repository version extends the original application for local/offline stereoscopic experimentation.
 
+## Batch photos
+
+In the single-image **3D Technique Studio**, choose the technique and settings you want, then click **Batch photos…**. The batch captures the currently visible settings, including pending technique changes, strength, screen depth, output format/quality, eye order and depth-model selection. Folder drops and **Choose folder** include subfolders; **Choose images** is available on phones and browsers without folder selection. Unsupported/hidden files and duplicate selections are skipped with a count.
+
+Click **Process photos**. Photos run one at a time, with per-photo progress, original/result inspection, safe pause/resume and retry of failed items. Each image gets fresh AI depth; photo-specific painted edits and imported depth maps are not copied. A custom stereogram pattern is captured and reused. Batch work is isolated from the original Studio photo.
+
+Choose **Prepare ZIP**, then **Save ZIP**. Original folder paths and filenames are retained with a technique suffix; name collisions are numbered. **Include depth maps** adds matching 16-bit grayscale PNGs in `depth-maps/`; leave it off for results only. This choice can change after processing without recalculating anything. The archive also includes settings and a result/error manifest. Individual results can be saved separately. Keep the tab open: the queue/results are retained until you leave or reload. ZIP archives above 4 GB require smaller batches or individual downloads.
+
+Batch photos supports all 17 techniques in the single-image Studio, including its digital display formats. Imported stereo pairs, View-Master reels and the separate multi-source/geometry workspaces retain their own workflows. Local batch exports retain full source resolution; hosted and animated outputs keep the same size limits as ordinary downloads.
+
 ## Stereo rendering controls
 
 Single-image stereo now uses fractional pixel shifts, depth-aware visibility and background-aware gap repair. It runs on the CPU in both the hosted and Mac editions without an additional model download. Hidden texture is reconstructed approximately; fine hair, foliage and large depth jumps may still show stretched detail.

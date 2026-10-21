@@ -5,6 +5,8 @@ import os
 import io
 import json
 import time
+import re
+import shutil
 from PIL import Image, ImageOps
 import cv2
 import numpy as np
@@ -81,14 +83,36 @@ def session_path(suffix: str) -> str:
     return os.path.join(SESSION_DATA_FOLDER, f"{session_namespace()}_{suffix}")
 
 
-def clear_session_products():
+def clear_session_products(preserve_pattern=False):
     prefix = f"{session_namespace()}_"
     for filename in os.listdir(SESSION_DATA_FOLDER):
-        if filename.startswith(prefix):
+        if filename.startswith(prefix) and not filename.startswith(prefix + "_"):
+            if preserve_pattern and filename == prefix + "pattern.png":
+                continue
             try:
                 os.remove(os.path.join(SESSION_DATA_FOLDER, filename))
             except FileNotFoundError:
                 pass
+
+
+def is_batch_workspace():
+    return re.fullmatch(r"batch-[0-9a-f]{26}", request.headers.get("X-AAF-Workspace", "")) is not None
+
+
+@app.route("/batch-workspace", methods=["POST", "DELETE"])
+def batch_workspace():
+    """Each batch has its own source/depth/cache, scoped to the caller's session."""
+    if request.method == "DELETE":
+        if not is_batch_workspace():
+            return jsonify({"error": "Choose a batch workspace before clearing it"}), 400
+        clear_session_products()
+        return jsonify({"success": True})
+    workspace = "batch-" + uuid.uuid4().hex[:26]
+    source_pattern = session_path("pattern.png")
+    if os.path.isfile(source_pattern):
+        target = os.path.join(SESSION_DATA_FOLDER, f"{session['session_id']}__{workspace}_pattern.png")
+        shutil.copyfile(source_pattern, target)
+    return jsonify({"workspace": workspace}), 201
 
 
 def clear_stereo_cache():
@@ -230,7 +254,7 @@ def upload_image():
     try:
         pillow_image = Image.open(image)
         pillow_image = ImageOps.exif_transpose(pillow_image).convert("RGB")
-        clear_session_products()
+        clear_session_products(preserve_pattern=is_batch_workspace())
         original_path = session_path("image.png")
         pillow_image.save(original_path, format="PNG", optimize=False)
         return jsonify({

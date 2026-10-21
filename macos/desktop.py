@@ -98,7 +98,22 @@ def smoke_test():
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "brush", "points": [{"x": .5, "y": .5}], "radius": .1, "delta": .1}).status_code == 200
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "undo"}).status_code == 200
             assert client.post("/depth-map/edit", headers=headers, json={"operation": "redo"}).status_code == 200
+            original = client.get("/stereo/source", headers=headers).data
+            workspace = client.post("/batch-workspace", headers=headers)
+            assert workspace.status_code == 201, workspace.data
+            batch_headers = {**headers, "X-AAF-Workspace": workspace.json["workspace"]}
+            batch_source = io.BytesIO()
+            image.save(batch_source, "PNG")
+            batch_source.seek(0)
+            assert client.post("/image", headers=batch_headers, data={"file": (batch_source, "batch.png")}).status_code == 200
+            assert client.post("/depth-map/regenerate", headers=batch_headers, json={"generator": "automatic", "invert": False}).status_code == 200
+            assert client.get("/output/anaglyph?scope=full&format=png", headers=batch_headers).status_code == 200
+            batch_depth = client.get("/depth-map/download?kind=gray16", headers=batch_headers)
+            assert batch_depth.status_code == 200 and Image.open(io.BytesIO(batch_depth.data)).size == (80, 60)
+            assert client.delete("/batch-workspace", headers=batch_headers).status_code == 200
+            assert client.get("/stereo/source", headers=headers).data == original
             print("Frozen desktop: frontend, loopback server, bundled V2 inference, full-resolution export, depth undo/redo and origin guard passed")
+            print("Frozen desktop: isolated batch upload, local inference, output, depth-map download and cleanup passed")
         finally:
             server.shutdown()
             server.server_close()

@@ -2,6 +2,13 @@ Standalone Mac edition. Includes Python, the built web interface, local renderin
 and the verified Depth Anything V2 Small model. No Terminal setup or separate
 Python/Node/model installation. Processing stays on your Mac and works offline.
 
+**New: Batch photos.** Capture the current single-image Studio technique and
+settings, drop a folder (including subfolders), and process photos sequentially.
+Inspect originals/results, pause safely, retry failed photos, then download one
+ZIP. **Include depth maps** optionally adds matching 16-bit grayscale PNGs;
+change this before downloading without reprocessing. The original Studio image
+stays intact. Keep the tab open until you have saved the results.
+
 Stereo synthesis now uses subpixel shifts and background-aware gap repair.
 Choose **Set screen depth…**, then click a subject in the original photo to place
 it at the screen plane. **Show repaired areas** marks reconstructed pixels in
