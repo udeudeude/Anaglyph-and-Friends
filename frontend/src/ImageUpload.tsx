@@ -526,6 +526,7 @@ function ImageUpload({ onDepthRecipeChange, setIsDepthMapReadyStateLifter, isCha
 
     useEffect(() => {
         const onPaste = (event: ClipboardEvent) => {
+            if (document.querySelector('dialog[open]')) return;
             if (!isChangeAllowed && imageUrl) return;
             const item = Array.from(event.clipboardData?.items || []).find(candidate => candidate.type.startsWith('image/'));
             const file = item?.getAsFile();
@@ -535,6 +536,7 @@ function ImageUpload({ onDepthRecipeChange, setIsDepthMapReadyStateLifter, isCha
             }
         };
         const onKeyDown = (event: KeyboardEvent) => {
+            if (document.querySelector('dialog[open]')) return;
             if (event.repeat) return;
             const target = event.target as HTMLElement | null;
             if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
