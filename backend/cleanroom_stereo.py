@@ -42,12 +42,16 @@ def project_eye(image: np.ndarray, depth: np.ndarray, eye_offset: float,
     target_x = dest_x[valid]
     source_depth = z[valid]
 
-    # Stable ordering: farther samples first, nearer samples overwrite them.
-    order = np.argsort(source_depth, kind="stable")
+    # Resolve each destination explicitly. Repeated-index NumPy assignment
+    # does not guarantee that the nearest sample wins, even when sorted.
+    destination_id = src_y * width + target_x
+    order = np.lexsort((src_x, source_depth, destination_id))
+    sorted_ids = destination_id[order]
+    winners = order[np.r_[sorted_ids[1:] != sorted_ids[:-1], True]]
     output = np.zeros_like(pixels)
     coverage = np.zeros((height, width), dtype=np.uint8)
-    output[src_y[order], target_x[order]] = pixels[src_y[order], src_x[order]]
-    coverage[src_y[order], target_x[order]] = 255
+    output[src_y[winners], target_x[winners]] = pixels[src_y[winners], src_x[winners]]
+    coverage[src_y[winners], target_x[winners]] = 255
     return output, coverage
 
 
