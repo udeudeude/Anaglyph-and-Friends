@@ -1,0 +1,21 @@
+name: Independent pipeline checks
+on:
+  pull_request:
+    paths:
+      - 'backend/anaglyph_generator.py'
+      - 'backend/depth_map_generator.py'
+      - 'backend/test_independent_pipeline.py'
+      - 'backend/test_independent_api_integration.py'
+      - '.github/workflows/independent-pipeline.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install numpy opencv-python-headless pillow Flask Flask-Cors python-dotenv
+      - run: python -m unittest discover -s backend -p 'test_independent_pipeline.py' -v
+      - run: python -m py_compile backend/anaglyph_generator.py backend/depth_map_generator.py
+      - run: python backend/test_independent_api_integration.py
